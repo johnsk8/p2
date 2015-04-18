@@ -23,7 +23,7 @@
 	TVMStatus VMFileRead - not started
 	TVMStatus VMFileWrite - not started
 	TVMStatus VMFileSeek - not started
-	TVMStatus VMFilePrint - not started
+	TVMStatus VMFilePrint - GIVEN
 	MachineContextSave - GIVEN
 	MachineContextRestore - GIVEN
 	MachineContextSwitch - GIVEN
@@ -42,6 +42,7 @@
 */
 
 #include "VirtualMachine.h"
+#include "VirtualMachineUtils.c"
 #include <unistd.h> //standard symbolic constants and types
 #include <signal.h> //C library to handle signals
 #include <time.h> //time types
@@ -60,13 +61,15 @@
 #include <vector> //vector functions
 #include <map> //map functions
 
+typedef void (*TVMMain)(int argc, char *argv[]); //function ptr TVMMain
+
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
-	char loadMod = load(argv[0]); //load the module
+	TVMMain VMMain = VMLoadModule(argv[0]); //load the module
 
-	if(loadMod == /*fails to load*/ || loadMod == /*mod does not contain a VMMain() function*/)
-		return VM_STATUS_FAILURE;
-	else
+	if(!VMMain) //fail to load module
+		return 0;
+	else //load successful
 		return VM_STATUS_SUCCESS;
 } //TVMStatus VMStart()
 
@@ -121,6 +124,3 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
 {} //TVMStatus VMFileSeek()
-
-TVMStatus VMFilePrint(int filedescriptor, const char *format, ...)
-{} //TVMStatus VMFilePrint()
