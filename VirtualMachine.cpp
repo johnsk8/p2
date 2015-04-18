@@ -43,6 +43,7 @@
 
 #include "VirtualMachine.h"
 #include "VirtualMachineUtils.c"
+#include "Machine.h"
 #include <unistd.h> //standard symbolic constants and types
 #include <signal.h> //C library to handle signals
 #include <time.h> //time types
@@ -61,13 +62,13 @@
 #include <vector> //vector functions
 #include <map> //map functions
 
-typedef void (*TVMMain)(int argc, char *argv[]); //function ptr TVMMain
+typedef void (*TVMMain)(int argc, char *argv[]);
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
 	TVMMain VMMain = VMLoadModule(argv[0]); //load the module
 
-	if(!VMMain) //fail to load module
+	if(VMMain == NULL) //fail to load module
 		return 0;
 	else //load successful
 		return VM_STATUS_SUCCESS;
