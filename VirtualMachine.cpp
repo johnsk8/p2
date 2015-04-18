@@ -3,7 +3,7 @@
 	Authors: John Garcia, Felix Ng
 
 	In this version:
-	TVMStatus VMStart -	not started
+	TVMStatus VMStart -	starting
 	TVMMainEntry VMLoadModule -	GIVEN
 	void VMUnloadModule - GIVEN
 	TVMStatus VMThreadCreate - not started
@@ -12,7 +12,7 @@
 	TVMStatus VMThreadTerminate - not started
 	TVMStatus VMThreadID - not started
 	TVMStatus VMThreadState - not started
-	TVMStatus VMThreadSleep - not started
+	TVMStatus VMThreadSleep - starting
 	TVMStatus VMMutexCreate - not started
 	TVMStatus VMMutexDelete - not started
 	TVMStatus VMMutexQuery - not started
@@ -61,6 +61,8 @@
 #include <stdio.h> //standard input/output
 #include <vector> //vector functions
 #include <map> //map functions
+#include <thread> //thread functions
+using namespace std;
 
 typedef void (*TVMMain)(int argc, char *argv[]);
 
@@ -94,7 +96,16 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 {} //TVMStatus VMThreadState()
 
 TVMStatus VMThreadSleep(TVMTick tick)
-{} //TVMStatus VMThreadSleep()
+{
+	if(tick)
+	{
+		usleep(tick); //sleep in milliseconds
+		return VM_STATUS_SUCCESS; //successful sleep
+	}
+
+	if(tick == VM_TIMEOUT_INFINITE)
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+} //TVMStatus VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
 {} //TVMStatus VMMutexCreate()
