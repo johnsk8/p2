@@ -68,6 +68,9 @@ typedef void (*TVMMain)(int argc, char *argv[]);
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
+	MachineInitialize(tickms); //initialize the machine with specified time
+	MachineEnableSignals(void); //start the signals
+	MachineRequestAlarm(tickms, machinetickms, argc); //starts the alarm tick
 	TVMMain VMMain = VMLoadModule(argv[0]); //load the module
 
 	if(VMMain == NULL) //fail to load module
