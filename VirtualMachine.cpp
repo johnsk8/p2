@@ -42,7 +42,6 @@
 */
 
 #include "VirtualMachine.h"
-#include "VirtualMachineUtils.c"
 #include "Machine.h"
 #include <unistd.h> //standard symbolic constants and types
 #include <signal.h> //C library to handle signals
@@ -62,21 +61,29 @@
 #include <vector> //vector functions
 #include <map> //map functions
 #include <thread> //thread functions
+#include <iostream>
 using namespace std;
 
+extern "C"
+{
 typedef void (*TVMMain)(int argc, char *argv[]);
+TVMMainEntry VMLoadModule(const char *module);
+//typedef void MachineRequestAlarm(useconds_t usec, TMachineAlarmCallback callback, void *calldata);
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
-	MachineInitialize(tickms); //initialize the machine with specified time
-	MachineEnableSignals(void); //start the signals
-	MachineRequestAlarm(tickms, machinetickms, argc); //starts the alarm tick
 	TVMMain VMMain = VMLoadModule(argv[0]); //load the module
+	/*MachineInitialize(tickms); //initialize the machine with specified time
+	MachineRequestAlarm(tickms, machinetickms, argc); //starts the alarm tick
+	MachineEnableSignals(void); //start the signals*/
 
 	if(VMMain == NULL) //fail to load module
 		return 0;
 	else //load successful
+	{
+		VMMain(argc, argv); //TVMMain points to this
 		return VM_STATUS_SUCCESS;
+	}
 } //TVMStatus VMStart()
 
 TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param, 
@@ -100,14 +107,14 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 
 TVMStatus VMThreadSleep(TVMTick tick)
 {
-	if(tick)
+	/*if(tick)
 	{
 		usleep(tick); //sleep in milliseconds
 		return VM_STATUS_SUCCESS; //successful sleep
 	}
 
 	if(tick == VM_TIMEOUT_INFINITE)
-		return VM_STATUS_ERROR_INVALID_PARAMETER;
+		return VM_STATUS_ERROR_INVALID_PARAMETER;*/
 } //TVMStatus VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
@@ -139,3 +146,4 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
 {} //TVMStatus VMFileSeek()
+} //extern "C"
