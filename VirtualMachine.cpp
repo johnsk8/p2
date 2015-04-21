@@ -62,6 +62,8 @@
 #include <map> //map functions
 #include <thread> //thread functions
 #include <iostream>
+#include <string>
+#include <stddef.h>
 using namespace std;
 
 extern "C"
@@ -81,7 +83,7 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 		return 0;
 	else //load successful
 	{
-		VMMain(argc, argv); //TVMMain points to this
+		VMMain(argc, argv); //function call to start TVMMain
 		return VM_STATUS_SUCCESS;
 	}
 } //TVMStatus VMStart()
@@ -107,14 +109,14 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 
 TVMStatus VMThreadSleep(TVMTick tick)
 {
-	/*if(tick)
+	if(tick)
 	{
 		usleep(tick); //sleep in milliseconds
 		return VM_STATUS_SUCCESS; //successful sleep
 	}
 
 	if(tick == VM_TIMEOUT_INFINITE)
-		return VM_STATUS_ERROR_INVALID_PARAMETER;*/
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
 } //TVMStatus VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
@@ -142,7 +144,25 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
 {} //TVMStatus VMFileRead()
 
 TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
-{} //TVMStatus VMFileWrite()
+{
+	if(data == NULL || length == NULL) //invalid input
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+	//cout << "we here" << endl;
+	double lengthBytes = size_t(length); //size of length in bytes
+	int writer = ssize_t(write(filedescriptor, data, lengthBytes)); //write to file
+
+	if(writer == -1) //fail to write
+	{
+		//cout << "failed to write" << endl;
+		return VM_STATUS_FAILURE;
+	}
+
+	else //write successful
+	{
+		//cout << "success to write" << endl;
+		return VM_STATUS_SUCCESS;
+	}
+} //TVMStatus VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
 {} //TVMStatus VMFileSeek()
