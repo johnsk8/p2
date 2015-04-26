@@ -24,21 +24,6 @@
 	TVMStatus VMFileWrite - not started
 	TVMStatus VMFileSeek - not started
 	TVMStatus VMFilePrint - GIVEN
-	MachineContextSave - GIVEN
-	MachineContextRestore - GIVEN
-	MachineContextSwitch - GIVEN
-	MachineContextCreate - GIVEN
-	void MachineInitialize - GIVEN
-	void MachineTerminate - GIVEN
-	void MachineEnableSignals - GIVEN
-	void MachineSuspendSignals - GIVEN
-	void MachineResumeSignals - GIVEN
-	void MachineRequestAlarm - GIVEN
-	void MachineFileOpen - GIVEN
-	void MachineFileRead - GIVEN
-	void MachineFileWrite - GIVEN
-	void MachineFileSeek - GIVEN
-	void MachineFileClose - GIVEN
 */
 
 #include "VirtualMachine.h"
@@ -57,7 +42,6 @@
 #include <string.h> //basic string handling functions
 #include <stdlib.h> //standard library definitions
 #include <stdint.h> //integer types
-#include <stdio.h> //standard input/output
 #include <vector> //vector functions
 #include <map> //map functions
 #include <thread> //thread functions
@@ -70,17 +54,24 @@ extern "C"
 {
 typedef void (*TVMMain)(int argc, char *argv[]);
 TVMMainEntry VMLoadModule(const char *module);
-//typedef void MachineRequestAlarm(useconds_t usec, TMachineAlarmCallback callback, void *calldata);
+volatile uint16_t globaltick = 0; //vol ticks
+
+void AlarmCallBack(void *param, int result)
+{
+	globaltick--; //dec tick time
+} //myFileCallBack()
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
 	TVMMain VMMain = VMLoadModule(argv[0]); //load the module
-	/*MachineInitialize(tickms); //initialize the machine with specified time
-	MachineRequestAlarm(tickms, machinetickms, argc); //starts the alarm tick
-	MachineEnableSignals(void); //start the signals*/
+	MachineInitialize(tickms); //initialize the machine with specified time
+	useconds_t usec = tickms * 1000; //usec in millisec
+	MachineRequestAlarm(usec, (TMachineAlarmCallback)AlarmCallBack, NULL); //starts the alarm tick
+	MachineEnableSignals(); //start the signals
 
 	if(VMMain == NULL) //fail to load module
 		return 0;
+
 	else //load successful
 	{
 		VMMain(argc, argv); //function call to start TVMMain
@@ -90,7 +81,9 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 
 TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param, 
 	TVMMemorySize memsize, TVMThreadPriority prio, TVMThreadIDRef tid)
-{} //TVMStatus VMThreadCreate()
+{
+	MachineContextCreate((SMachineContextRef)prio, entry, NULL, tid, memsize); //create a thread
+} //TVMStatus VMThreadCreate()
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
 {} //TVMStatus VMThreadDelete()
@@ -109,14 +102,13 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 
 TVMStatus VMThreadSleep(TVMTick tick)
 {
-	if(tick)
-	{
-		usleep(tick); //sleep in milliseconds
-		return VM_STATUS_SUCCESS; //successful sleep
-	}
-
-	if(tick == VM_TIMEOUT_INFINITE)
+	if(tick == VM_TIMEOUT_INFINITE) //invalid
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
+
+	globaltick = tick; //set tick as globaltick
+
+	while (globaltick > 0) {}; //go to sleep until zero
+	return VM_STATUS_SUCCESS; //success sleep after reaches zero
 } //TVMStatus VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
@@ -147,21 +139,14 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 {
 	if(data == NULL || length == NULL) //invalid input
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
-	//cout << "we here" << endl;
-	double lengthBytes = size_t(length); //size of length in bytes
-	int writer = ssize_t(write(filedescriptor, data, lengthBytes)); //write to file
+
+	int writer = write(filedescriptor, data, *length); //write to file
 
 	if(writer == -1) //fail to write
-	{
-		//cout << "failed to write" << endl;
 		return VM_STATUS_FAILURE;
-	}
 
 	else //write successful
-	{
-		//cout << "success to write" << endl;
 		return VM_STATUS_SUCCESS;
-	}
 } //TVMStatus VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
