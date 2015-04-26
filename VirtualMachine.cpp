@@ -37,6 +37,7 @@ extern "C"
 typedef void (*TVMMain)(int argc, char *argv[]); //function ptr
 TVMMainEntry VMLoadModule(const char *module); //load module spec
 volatile uint16_t globaltick = 0; //vol ticks
+//vector<TCB*> threadList; //need thread vector for storage
 
 class TCB
 {
@@ -62,11 +63,17 @@ void AlarmCallBack(void *param, int result)
 	globaltick--; //dec tick time
 } //myFileCallBack()
 
+void Skeleton(void* thread)
+{
+  printf("inside skeleton\n");
+  //deal with thread, call VMThreadTerminate when thread returns
+} //Skeleton()
+
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
 	TVMMain VMMain = VMLoadModule(argv[0]); //load the module
 	MachineInitialize(tickms); //initialize the machine with specified time
-	useconds_t usec = tickms * 1000; //usec in millisec
+	useconds_t usec = tickms * 1000; //usec in microseconds
 	MachineRequestAlarm(usec, (TMachineAlarmCallback)AlarmCallBack, NULL); //starts the alarm tick
 	MachineEnableSignals(); //start the signals
 
@@ -84,29 +91,68 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param, 
 	TVMMemorySize memsize, TVMThreadPriority prio, TVMThreadIDRef tid)
 {
-	MachineSuspendSignals(tid); //suspend signals in order to create thread
-
 	if(entry == NULL || tid == NULL) //invalid
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
 
+	MachineSuspendSignals(tid); //suspend signals in order to create thread
+
+	TCB VMMainThread; //start main thread
+	VMMainThread.threadEntry = entry;
+	VMMainThread.threadMemSize = memsize;
+	VMMainThread.threadPrior = prio;
+	VMMainThread.threadID = *tid;
+	//threadList.push(VMMainThread); //push it into the vector to store
+
+	SMachineContext context;
+	uint8_t* stackaddr = new uint8_t[memsize];
+	MachineContextCreate(&context, Skeleton, NULL, stackaddr, memsize);
+
+	MachineResumeSignals(tid); //resume signals after creating thread
 	//MachineContextCreate((SMachineContextRef)prio, entry, NULL, tid, memsize); //create a thread
-	return 0;
+	return VM_STATUS_SUCCESS;
 } //TVMStatus VMThreadCreate()
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
 {return 0;} //TVMStatus VMThreadDelete()
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
-{return 0;} //TVMStatus VMThreadActivate()
+{
+	//MachineSuspendSignals(tid); //suspend signals in order to create thread
+	//MachineResumeSignals(tid); //resume signals after creating thread
+	return 0;
+} //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
 {return 0;} //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
-{return 0;} //TVMStatus VMThreadID()
+{
+	if(threadref) //successful
+		return VM_STATUS_SUCCESS;
+
+	else if(!threadref) //thread does not exist
+		return VM_STATUS_ERROR_INVALID_ID;
+
+	else if(threadref == NULL) //invalid
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+
+	return 0;
+} //TVMStatus VMThreadID()
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
-{return 0;} //TVMStatus VMThreadState()
+{
+	if(thread) //successful
+		//place thead into spec thread state
+		return VM_STATUS_SUCCESS;
+
+	else if(!thread) //thread does not exist
+		return VM_STATUS_ERROR_INVALID_ID;
+
+	else if(stateref == NULL) //invalid
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+
+	return 0;
+} //TVMStatus VMThreadState()
 
 TVMStatus VMThreadSleep(TVMTick tick)
 {
