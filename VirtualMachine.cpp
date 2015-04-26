@@ -3,7 +3,7 @@
 	Authors: John Garcia, Felix Ng
 
 	In this version:
-	TVMStatus VMStart -	starting
+	TVMStatus VMStart -	started
 	TVMMainEntry VMLoadModule -	GIVEN
 	void VMUnloadModule - GIVEN
 	TVMStatus VMThreadCreate - not started
@@ -12,7 +12,7 @@
 	TVMStatus VMThreadTerminate - not started
 	TVMStatus VMThreadID - not started
 	TVMStatus VMThreadState - not started
-	TVMStatus VMThreadSleep - starting
+	TVMStatus VMThreadSleep - started
 	TVMStatus VMMutexCreate - not started
 	TVMStatus VMMutexDelete - not started
 	TVMStatus VMMutexQuery - not started
@@ -21,40 +21,41 @@
 	TVMStatus VMFileOpen - not started
 	TVMStatus VMFileClose - not started  
 	TVMStatus VMFileRead - not started
-	TVMStatus VMFileWrite - not started
+	TVMStatus VMFileWrite - started
 	TVMStatus VMFileSeek - not started
 	TVMStatus VMFilePrint - GIVEN
 */
 
 #include "VirtualMachine.h"
 #include "Machine.h"
-#include <unistd.h> //standard symbolic constants and types
-#include <signal.h> //C library to handle signals
-#include <time.h> //time types
-#include <sys/types.h> //data types
-#include <sys/ipc.h> //interprocess communication access structure
-#include <sys/msg.h> //message queue structures
-#include <sys/stat.h> //data returned by the stat() function
-#include <sys/wait.h> //declarations for waiting
-#include <fcntl.h> //file control options
-#include <errno.h> //system error numbers
-#include <poll.h> //definitions for the poll() function
-#include <string.h> //basic string handling functions
-#include <stdlib.h> //standard library definitions
-#include <stdint.h> //integer types
-#include <vector> //vector functions
-#include <map> //map functions
-#include <thread> //thread functions
+#include <vector>
 #include <iostream>
-#include <string>
-#include <stddef.h>
 using namespace std;
 
 extern "C"
 {
-typedef void (*TVMMain)(int argc, char *argv[]);
-TVMMainEntry VMLoadModule(const char *module);
+typedef void (*TVMMain)(int argc, char *argv[]); //function ptr
+TVMMainEntry VMLoadModule(const char *module); //load module spec
 volatile uint16_t globaltick = 0; //vol ticks
+
+class TCB
+{
+	public:
+		TVMThreadID threadID; //to hold the threads ID, may be redundant, but might be easier to get
+		TVMThreadPriority threadPrior; //for the threads priority
+		TVMThreadState threadState; //for thread stack
+		TVMMemorySize threadMemSize; //for stack size
+		uint8_t *ptr; //this or another byte size type pointer for base of stack
+		TVMThreadEntry threadEntry; //for the threads entry function
+		void *vptr; //for the threads entry parameter
+		SMachineContext SMC; //for the context to switch to/from the thread
+		TVMTick ticker; //for the ticks that thread needs to wait
+		//possibly need something to hold file return type
+		//possibly hold a pointer or ID of mutex waiting on
+		//possibly hold a list of held mutexes
+}; //class TCB
+
+vector<TCB> TCBlist; //list to hold threads
 
 void AlarmCallBack(void *param, int result)
 {
@@ -74,6 +75,7 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 
 	else //load successful
 	{
+		//TCB mainThread; //create thread for VMMain
 		VMMain(argc, argv); //function call to start TVMMain
 		return VM_STATUS_SUCCESS;
 	}
@@ -82,23 +84,29 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param, 
 	TVMMemorySize memsize, TVMThreadPriority prio, TVMThreadIDRef tid)
 {
-	MachineContextCreate((SMachineContextRef)prio, entry, NULL, tid, memsize); //create a thread
+	MachineSuspendSignals(tid); //suspend signals in order to create thread
+
+	if(entry == NULL || tid == NULL) //invalid
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+
+	//MachineContextCreate((SMachineContextRef)prio, entry, NULL, tid, memsize); //create a thread
+	return 0;
 } //TVMStatus VMThreadCreate()
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
-{} //TVMStatus VMThreadDelete()
+{return 0;} //TVMStatus VMThreadDelete()
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
-{} //TVMStatus VMThreadActivate()
+{return 0;} //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
-{} //TVMStatus VMThreadTerminate()
+{return 0;} //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
-{} //TVMStatus VMThreadID()
+{return 0;} //TVMStatus VMThreadID()
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
-{} //TVMStatus VMThreadState()
+{return 0;} //TVMStatus VMThreadState()
 
 TVMStatus VMThreadSleep(TVMTick tick)
 {
@@ -112,28 +120,28 @@ TVMStatus VMThreadSleep(TVMTick tick)
 } //TVMStatus VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
-{} //TVMStatus VMMutexCreate()
+{return 0;} //TVMStatus VMMutexCreate()
 
 TVMStatus VMMutexDelete(TVMMutexID mutex)
-{} //TVMStatus VMMutexDelete()
+{return 0;} //TVMStatus VMMutexDelete()
 
 TVMStatus VMMutexQuery(TVMMutexID mutex, TVMThreadIDRef ownerref)
-{} //TVMStatus VMMutexQuery()
+{return 0;} //TVMStatus VMMutexQuery()
 
 TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
-{} //TVMStatus VMMutexAcquire()
+{return 0;} //TVMStatus VMMutexAcquire()
 
 TVMStatus VMMutexRelease(TVMMutexID mutex)
-{} //TVMStatus VMMutexRelease()
+{return 0;} //TVMStatus VMMutexRelease()
 
 TVMStatus VMFileOpen(const char *filename, int flags, int mode, int *filedescriptor)
-{} //TVMStatus VMFileOpen()
+{return 0;} //TVMStatus VMFileOpen()
 
 TVMStatus VMFileClose(int filedescriptor)
-{} //TVMStatus VMFileClose()
+{return 0;} //TVMStatus VMFileClose()
 
 TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
-{} //TVMStatus VMFileRead()
+{return 0;} //TVMStatus VMFileRead()
 
 TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 {
@@ -150,5 +158,5 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 } //TVMStatus VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
-{} //TVMStatus VMFileSeek()
+{return 0;} //TVMStatus VMFileSeek()
 } //extern "C"
