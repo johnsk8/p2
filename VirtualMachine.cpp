@@ -105,14 +105,7 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 	VMMainThread.threadMemSize = memsize;
 	VMMainThread.threadPrior = prio;
 	VMMainThread.threadID = *tid;
-	cout<<"before vector store" << endl;
 	//threadList[0] = VMMainThread; //put it into the vector to store ERROR HERE
-	cout << "did the thread class & vector store" << endl;
-	
-	SMachineContext context;
-	uint8_t* stackaddr = new uint8_t[memsize];
-	MachineContextCreate(&context, Skeleton, NULL, stackaddr, memsize);
-	//MachineContextSwitch(&context, (void*)Skeleton); //switch to the new context here
 	
 	MachineResumeSignals(&OldState); //resume signals after creating thread
 	return VM_STATUS_SUCCESS;
@@ -124,10 +117,22 @@ TVMStatus VMThreadDelete(TVMThreadID thread)
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
 {
-	//TMachineSignalState OldState; //local variable to suspend
-	//MachineSuspendSignals(&OldState); //suspend signals in order to create thread
-	//MachineResumeSignals(&OldState); //resume signals after creating thread
-	return 0;
+	if(!thread) //thread does not exist
+		return VM_STATUS_ERROR_INVALID_ID;
+
+	else if(thread == VM_THREAD_STATE_DEAD) //dead state check
+		return VM_STATUS_ERROR_INVALID_STATE;
+
+	TMachineSignalState OldState; //local variable to suspend
+	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
+
+	//SMachineContext context;
+	//uint8_t* stackaddr = new uint8_t[VMMainThread.threadMemSize];
+	//MachineContextCreate(&context, Skeleton, NULL, stackaddr, thread);
+	//MachineContextSwitch(&context, &Skeleton); //switch to the new context here
+
+	MachineResumeSignals(&OldState); //resume signals after creating thread
+	return VM_STATUS_SUCCESS;
 } //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
