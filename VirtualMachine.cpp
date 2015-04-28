@@ -26,7 +26,7 @@
 	TVMStatus VMFilePrint - GIVEN
 	In order to remove all system V messages: 
 	1. ipcs //to see msg queue
-	2. ipcs | grep q | awk '{print "ipcrm -q "$2""}' | xargs -0 bash -c
+	2. type this in cmd line: ipcs | grep q | awk '{print "ipcrm -q "$2""}' | xargs -0 bash -c
 	3. ipcs //should be clear now
 */
 
@@ -59,14 +59,14 @@ class TCB
 		//possibly hold a list of held mutexes
 }; //class TCB
 
-vector<TCB> threadList; //list to hold threads
+vector<TCB*> threadList; //global ptr list to hold threads
 
 void AlarmCallBack(void *param, int result)
 {
 	globaltick--; //dec tick time
 } //myFileCallBack()
 
-void Skeleton(void* thread)
+void Skeleton(void* param)
 {
   printf("inside skeleton\n");
   //deal with thread, call VMThreadTerminate when thread returns
@@ -100,16 +100,15 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 	TMachineSignalState OldState; //local variable to suspend
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 
-	TCB VMMainThread; //start main thread
-	VMMainThread.threadEntry = entry;
-	VMMainThread.threadMemSize = memsize;
-	VMMainThread.threadPrior = prio;
-	VMMainThread.threadID = *tid;
-	//threadList[0] = VMMainThread; //put it into the vector to store ERROR HERE
+	TCB *newThread = new(TCB); //start new thread
+	newThread->threadEntry = entry;
+	newThread->threadMemSize = memsize;
+	newThread->threadPrior = prio;
+	newThread->threadID = *tid;
+	threadList[0] = newThread; //store in vector of ptrs
 	
 	MachineResumeSignals(&OldState); //resume signals after creating thread
 	return VM_STATUS_SUCCESS;
-	//return 0;
 } //TVMStatus VMThreadCreate()
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
@@ -126,17 +125,26 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 	TMachineSignalState OldState; //local variable to suspend
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 
-	//SMachineContext context;
-	//uint8_t* stackaddr = new uint8_t[VMMainThread.threadMemSize];
-	//MachineContextCreate(&context, Skeleton, NULL, stackaddr, thread);
-	//MachineContextSwitch(&context, &Skeleton); //switch to the new context here
+	//MachineContextCreate(&TCB->SMC, Skeleton, TCB, TCB->stack, TCB->size); //prof
+	MachineContextCreate(&threadList.at(thread)->SMC, Skeleton, NULL, 
+		threadList.at(thread)->ptr, threadList.at(thread)->threadMemSize);
+	threadList.at(thread)->threadState = VM_THREAD_STATE_RUNNING; //set current thread running
+	MachineContextSwitch(&threadList[0]->SMC, &threadList.at(thread)->SMC); //switch to new context here
 
 	MachineResumeSignals(&OldState); //resume signals after creating thread
 	return VM_STATUS_SUCCESS;
 } //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
-{return 0;} //TVMStatus VMThreadTerminate()
+{
+	if(!thread)
+		return VM_STATUS_ERROR_INVALID_ID;
+
+	else if(thread == VM_THREAD_STATE_DEAD)
+		return VM_STATUS_ERROR_INVALID_STATE;
+
+	return VM_STATUS_SUCCESS;
+} //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
 {
