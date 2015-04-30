@@ -41,7 +41,7 @@ extern "C"
 class TCB
 {
 	public:
-		TVMThreadID threadID; //to hold the threads ID, may be redundant, but might be easier to get
+		TVMThreadID threadID; //to hold the threads ID
 		TVMThreadPriority threadPrior; //for the threads priority
 		TVMThreadState threadState; //for thread stack
 		TVMMemorySize threadMemSize; //for stack size
@@ -68,7 +68,7 @@ void AlarmCallBack(void *param, int result)
 
 void Skeleton(void* param)
 {
-  printf("inside skeleton\n");
+  printf("inside skeleton bitch\n");
   //deal with thread, call VMThreadTerminate when thread returns
 } //Skeleton()
 
@@ -140,20 +140,6 @@ TVMStatus VMThreadDelete(TVMThreadID thread)
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
 {
-	/*for(int i = 0; i < threadList.capacity(); i++)
-	{
-		if(thread == threadList[i]->threadID) //thread does exist
-		{
-			if(threadList[i]->threadState == VM_THREAD_STATE_DEAD) 
-				return VM_STATUS_ERROR_INVALID_STATE;
-			break; //we found the existing thread so stop checking
-		}
-
-		else if(i == threadList.capacity()-1) 	
-			return VM_STATUS_ERROR_INVALID_ID;
-	} //loop through the entire thread list
-	*/
-
 	vector<TCB*>::iterator itr;
 	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
 	{
@@ -164,11 +150,11 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 			break;
 		}
 
-		else if(itr == threadList.end()) //thread does not exist
+		else if(itr == threadList.end()-1) //thread does not exist
 			return VM_STATUS_ERROR_INVALID_ID;
 	} //iterate through the entire thread list
 
-	TMachineSignalState OldState; //local variable to suspend
+	TMachineSignalState OldState; //local variable to suspend signals
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 
 	//MachineContextCreate(&TCB->SMC, Skeleton, TCB, TCB->stack, TCB->size); //prof
@@ -185,7 +171,11 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
 {return 0;} //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
-{return 0;} //TVMStatus VMThreadID()
+{
+	if(threadref == NULL) //invalid
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+	return 0;
+} //TVMStatus VMThreadID()
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 {
