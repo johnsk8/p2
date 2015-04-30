@@ -38,10 +38,6 @@ using namespace std;
 
 extern "C"
 {
-typedef void (*TVMMain)(int argc, char *argv[]); //function ptr
-TVMMainEntry VMLoadModule(const char *module); //load module spec
-volatile uint16_t globaltick = 0; //vol ticks
-
 class TCB
 {
 	public:
@@ -49,7 +45,7 @@ class TCB
 		TVMThreadPriority threadPrior; //for the threads priority
 		TVMThreadState threadState; //for thread stack
 		TVMMemorySize threadMemSize; //for stack size
-		uint8_t *ptr; //this or another byte size type pointer for base of stack
+		uint8_t *base; //this or another byte size type pointer for base of stack
 		TVMThreadEntry threadEntry; //for the threads entry function
 		void *vptr; //for the threads entry parameter
 		SMachineContext SMC; //for the context to switch to/from the thread
@@ -59,6 +55,9 @@ class TCB
 		//possibly hold a list of held mutexes
 }; //class TCB
 
+typedef void (*TVMMain)(int argc, char *argv[]); //function ptr
+TVMMainEntry VMLoadModule(const char *module); //load module spec
+volatile uint16_t globaltick = 0; //vol ticks
 TCB *idle = new TCB; //global idle thread
 vector<TCB*> threadList; //global ptr list to hold threads
 
@@ -72,6 +71,17 @@ void Skeleton(void* param)
   printf("inside skeleton\n");
   //deal with thread, call VMThreadTerminate when thread returns
 } //Skeleton()
+
+void idleFunction(void* TCBref)
+{
+	TMachineSignalState OldState; //a state
+    MachineEnableSignals(); //start the signals
+    while(1)
+    {
+        MachineSuspendSignals(&OldState);
+        MachineResumeSignals(&OldState);
+    } //this is idling while we are in the idle state
+} //idleFunction()
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
@@ -93,7 +103,7 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 
 		idle->threadID = 0; //idle thread first in array of threads
 		idle->threadState = VM_THREAD_STATE_DEAD;
-		//idle->threadEntry = idle;
+		idle->threadEntry = idleFunction;
 
 		threadList.push_back(idle);
 		threadList.push_back(VMMainTCB);
@@ -111,11 +121,13 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 	TMachineSignalState OldState; //local variable to suspend
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 
+	uint8_t *stack = new uint8_t[memsize]; //array of threads treated as a stack
 
 	TCB *newThread = new TCB; //start new thread
 	newThread->threadEntry = entry;
 	newThread->threadMemSize = memsize;
 	newThread->threadPrior = prio;
+	newThread->base = stack;
 	newThread->threadID = *tid;
 	threadList.push_back(newThread); //store in vector of ptrs
 	
@@ -139,7 +151,7 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 
 	//MachineContextCreate(&TCB->SMC, Skeleton, TCB, TCB->stack, TCB->size); //prof
 	MachineContextCreate(&threadList.at(thread)->SMC, Skeleton, NULL, 
-		threadList.at(thread)->ptr, threadList.at(thread)->threadMemSize);
+		threadList.at(thread)->base, threadList.at(thread)->threadMemSize);
 	threadList.at(thread)->threadState = VM_THREAD_STATE_RUNNING; //set current thread running
 	MachineContextSwitch(&threadList[0]->SMC, &threadList.at(thread)->SMC); //switch to new context here
 
