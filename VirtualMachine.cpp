@@ -68,7 +68,7 @@ void AlarmCallBack(void *param, int result)
 
 void Skeleton(void* param)
 {
-  printf("inside skeleton bitch\n");
+  cout << "inside skeleton bitch" << endl;
   //deal with thread, call VMThreadTerminate when thread returns
 } //Skeleton()
 
@@ -78,8 +78,8 @@ void idleFunction(void* TCBref)
     MachineEnableSignals(); //start the signals
     while(1)
     {
-        MachineSuspendSignals(&OldState);
-        MachineResumeSignals(&OldState);
+      MachineSuspendSignals(&OldState);
+      MachineResumeSignals(&OldState);
     } //this is idling while we are in the idle state
 } //idleFunction()
 
@@ -157,11 +157,14 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 	TMachineSignalState OldState; //local variable to suspend signals
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 
+	cout<< "here" << endl;
+
+	MachineContextCreate(&(*itr)->SMC, Skeleton, NULL, (*itr)->base, (*itr)->threadMemSize);
 	//MachineContextCreate(&TCB->SMC, Skeleton, TCB, TCB->stack, TCB->size); //prof
-	MachineContextCreate(&threadList.at(thread)->SMC, Skeleton, NULL, 
-		threadList.at(thread)->base, threadList.at(thread)->threadMemSize);
-	threadList.at(thread)->threadState = VM_THREAD_STATE_RUNNING; //set current thread running
-	MachineContextSwitch(&threadList[0]->SMC, &threadList.at(thread)->SMC); //switch to new context here
+	/*MachineContextCreate(&threadList.at(thread)->SMC, Skeleton, NULL, 
+		threadList.at(thread)->base, threadList.at(thread)->threadMemSize);*/
+	(*itr)->threadState = VM_THREAD_STATE_RUNNING; //set current thread to running
+	MachineContextSwitch(&threadList[0]->SMC, &(*itr)->SMC); //switch to new context here
 
 	MachineResumeSignals(&OldState); //resume signals after creating thread
 	return VM_STATUS_SUCCESS;
@@ -184,10 +187,10 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 	
 	vector<TCB*>::iterator itr;
 	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
-	{			// iterate through entire threadlist
+	{
 		if((*itr)->threadID == thread)
 		{
-			stateref = &(*itr)->threadState;
+			*stateref = (*itr)->threadState;
 			return VM_STATUS_SUCCESS;
 		}
 	} //iterate through the entire thread list
@@ -235,13 +238,12 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 	if(data == NULL || length == NULL) //invalid input
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
 
-	int writer = write(filedescriptor, data, *length); //write to file
+	if(write(filedescriptor, data, *length) > -1) //write to file
+		return VM_STATUS_SUCCESS;
 
-	if(writer == -1) //fail to write
+	else //failed to write
 		return VM_STATUS_FAILURE;
 
-	else //write successful
-		return VM_STATUS_SUCCESS;
 } //TVMStatus VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
