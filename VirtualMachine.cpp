@@ -140,18 +140,33 @@ TVMStatus VMThreadDelete(TVMThreadID thread)
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
 {
-	for(int i = 0; i < threadList.capacity(); i++)
+	/*for(int i = 0; i < threadList.capacity(); i++)
 	{
 		if(thread == threadList[i]->threadID) //thread does exist
 		{
-			if(threadList[i]->threadState == VM_THREAD_STATE_DEAD) //dead state check
+			if(threadList[i]->threadState == VM_THREAD_STATE_DEAD) 
 				return VM_STATUS_ERROR_INVALID_STATE;
 			break; //we found the existing thread so stop checking
 		}
 
-		else if (i == threadList.capacity()-1) //thread does not exist	
+		else if(i == threadList.capacity()-1) 	
 			return VM_STATUS_ERROR_INVALID_ID;
 	} //loop through the entire thread list
+	*/
+
+	vector<TCB*>::iterator itr;
+	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
+	{
+		if(thread  == (*itr)->threadID) //thread does exist
+		{
+			if((*itr)->threadState == VM_THREAD_STATE_DEAD) //dead state check
+				return VM_STATUS_ERROR_INVALID_STATE;
+			break;
+		}
+
+		else if(itr == threadList.end()) //thread does not exist
+			return VM_STATUS_ERROR_INVALID_ID;
+	} //iterate through the entire thread list
 
 	TMachineSignalState OldState; //local variable to suspend
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
@@ -167,24 +182,27 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 } //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
-{return 0} //TVMStatus VMThreadTerminate()
+{return 0;} //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
 {return 0;} //TVMStatus VMThreadID()
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 {
-	if(thread) //successful
-		//place thead into spec thread state
-		return VM_STATUS_SUCCESS;
-
-	else if(!thread) //thread does not exist
-		return VM_STATUS_ERROR_INVALID_ID;
-
-	else if(stateref == NULL) //invalid
+	if(stateref == NULL) //invalid
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
-
-	return 0;
+	
+	vector<TCB*>::iterator itr;
+	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
+	{			// iterate through entire threadlist
+		if((*itr)->threadID == thread)
+		{
+			stateref = &(*itr)->threadState;
+			return VM_STATUS_SUCCESS;
+		}
+	} //iterate through the entire thread list
+	
+	return VM_STATUS_ERROR_INVALID_ID; //thread does not exist
 } //TVMStatus VMThreadState()
 
 TVMStatus VMThreadSleep(TVMTick tick)
