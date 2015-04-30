@@ -34,6 +34,7 @@
 #include "VirtualMachine.h"
 #include "Machine.h"
 #include <vector>
+#include <queue>
 #include <iostream>
 using namespace std;
 
@@ -61,6 +62,9 @@ TVMMainEntry VMLoadModule(const char *module); //load module spec
 volatile uint16_t globaltick = 0; //vol ticks
 TCB *idle = new TCB; //global idle thread
 vector<TCB*> threadList; //global ptr list to hold threads
+queue<TCB*> highPrio; //high priority queue
+queue<TCB*> normPrio; //normal priority queue
+queue<TCB*> lowPrio; //low priority queue
 
 void AlarmCallBack(void *param, int result)
 {
@@ -69,7 +73,7 @@ void AlarmCallBack(void *param, int result)
 
 void Skeleton(void* param)
 {
-  cout << "inside skeleton bitch" << endl;
+  cout << "inside skeleton" << endl;
   //deal with thread, call VMThreadTerminate when thread returns
 } //Skeleton()
 
@@ -161,6 +165,14 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 	MachineContextCreate(&(*itr)->SMC, Skeleton, NULL, (*itr)->base, (*itr)->threadMemSize);
 	(*itr)->threadState = VM_THREAD_STATE_RUNNING; //set current thread to running
 	MachineContextSwitch(&threadList[0]->SMC, &(*itr)->SMC); //switch to new context here
+
+	if((*itr)->threadState == VM_THREAD_PRIORITY_HIGH)
+		highPrio.push(*itr); //push into high prio queue
+	if((*itr)->threadState == VM_THREAD_PRIORITY_NORMAL)
+		normPrio.push(*itr); //push into norm prio queue
+	if((*itr)->threadState == VM_THREAD_PRIORITY_LOW)
+		lowPrio.push(*itr); //push into low prio queue
+
 	//MachineContextCreate(&TCB->SMC, Skeleton, TCB, TCB->stack, TCB->size); //prof
 	/*MachineContextCreate(&threadList.at(thread)->SMC, Skeleton, NULL, 
 		threadList.at(thread)->base, threadList.at(thread)->threadMemSize);*/
@@ -185,7 +197,7 @@ TVMStatus VMThreadID(TVMThreadIDRef threadref)
 
 		else if(itr == threadList.end()-1) //thread does not exist
 			return VM_STATUS_ERROR_INVALID_ID;
-	}
+	} //iterate though the list of threads
 
 	return VM_STATUS_SUCCESS; //successful retrieval
 } //TVMStatus VMThreadID()
