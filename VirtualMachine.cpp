@@ -140,11 +140,18 @@ TVMStatus VMThreadDelete(TVMThreadID thread)
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
 {
-	if(!thread) //thread does not exist
-		return VM_STATUS_ERROR_INVALID_ID;
+	for(int i = 0; i < threadList.capacity(); i++)
+	{
+		if(thread == threadList[i]->threadID) //thread does exist
+		{
+			if(threadList[i]->threadState == VM_THREAD_STATE_DEAD) //dead state check
+				return VM_STATUS_ERROR_INVALID_STATE;
+			break; //we found the existing thread so stop checking
+		}
 
-	else if(thread == VM_THREAD_STATE_DEAD) //dead state check
-		return VM_STATUS_ERROR_INVALID_STATE;
+		else if (i == threadList.capacity()-1) //thread does not exist	
+			return VM_STATUS_ERROR_INVALID_ID;
+	} //loop through the entire thread list
 
 	TMachineSignalState OldState; //local variable to suspend
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
@@ -160,29 +167,10 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 } //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
-{
-	if(!thread)
-		return VM_STATUS_ERROR_INVALID_ID;
-
-	else if(thread == VM_THREAD_STATE_DEAD)
-		return VM_STATUS_ERROR_INVALID_STATE;
-
-	return VM_STATUS_SUCCESS;
-} //TVMStatus VMThreadTerminate()
+{return 0} //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
-{
-	if(threadref) //successful
-		return VM_STATUS_SUCCESS;
-
-	else if(!threadref) //thread does not exist
-		return VM_STATUS_ERROR_INVALID_ID;
-
-	else if(threadref == NULL) //invalid
-		return VM_STATUS_ERROR_INVALID_PARAMETER;
-
-	return 0;
-} //TVMStatus VMThreadID()
+{return 0;} //TVMStatus VMThreadID()
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 {
