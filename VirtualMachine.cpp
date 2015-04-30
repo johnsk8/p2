@@ -59,6 +59,7 @@ class TCB
 		//possibly hold a list of held mutexes
 }; //class TCB
 
+TCB *idle = new TCB; //global idle thread
 vector<TCB*> threadList; //global ptr list to hold threads
 
 void AlarmCallBack(void *param, int result)
@@ -85,7 +86,17 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 
 	else //load successful
 	{
-		//TCB mainThread; //create thread for VMMain
+		TCB *VMMainTCB = new TCB; //start main thread
+		VMMainTCB->threadID = 1;
+		VMMainTCB->threadPrior = VM_THREAD_PRIORITY_NORMAL;
+		VMMainTCB->threadState = VM_THREAD_STATE_RUNNING;
+
+		idle->threadID = 0; //idle thread first in array of threads
+		idle->threadState = VM_THREAD_STATE_DEAD;
+		//idle->threadEntry = idle;
+
+		threadList.push_back(idle);
+		threadList.push_back(VMMainTCB);
 		VMMain(argc, argv); //function call to start TVMMain
 		return VM_STATUS_SUCCESS;
 	}
@@ -100,12 +111,13 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 	TMachineSignalState OldState; //local variable to suspend
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 
-	TCB *newThread = new(TCB); //start new thread
+
+	TCB *newThread = new TCB; //start new thread
 	newThread->threadEntry = entry;
 	newThread->threadMemSize = memsize;
 	newThread->threadPrior = prio;
 	newThread->threadID = *tid;
-	threadList[0] = newThread; //store in vector of ptrs
+	threadList.push_back(newThread); //store in vector of ptrs
 	
 	MachineResumeSignals(&OldState); //resume signals after creating thread
 	return VM_STATUS_SUCCESS;
