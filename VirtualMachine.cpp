@@ -53,11 +53,8 @@
 #include <stddef.h>
 using namespace std;
 
-extern "C"
-{
-typedef void (*TVMMain)(int argc, char *argv[]);
-TVMMainEntry VMLoadModule(const char *module);
-
+extern "C" {
+	
 class TCB {
 public:
 	TVMThreadID threadID;// to hold the threads ID, may be redundant, but might be easier to get
@@ -72,16 +69,13 @@ public:
 	// Possibly need something to hold file return type
 	// Possibly hold a pointer or ID of mutex waiting on
 	// Possibly hold a list of held mutexes
-	void prints() {
-		cout << threadID << threadPriority << endl;
-
-	}
 };
 
-vector<TCB*> threadList;
+typedef void (*TVMMain)(int argc, char *argv[]);
+TVMMainEntry VMLoadModule(const char *module);
 
-volatile uint16_t test = 0;
 volatile uint16_t globaltick = 0;
+vector<TCB*> threadList;
 
 void AlarmCallback(void *params, int result){
 	globaltick--;
@@ -99,8 +93,12 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 		return VM_STATUS_FAILURE;
 	else //load successful
 	{
-		TCB VMMainTCB {0, VM_THREAD_PRIORITY_NORMAL, VM_THREAD_STATE_READY};
-		threadList.push_back(&VMMainTCB);
+		TCB *VMMainTCB = new TCB; //start main thread
+		VMMainTCB->threadID = 1;
+		VMMainTCB->threadPriority = VM_THREAD_PRIORITY_NORMAL;
+		VMMainTCB->threadState = VM_THREAD_STATE_RUNNING;
+		
+		threadList.push_back(VMMainTCB);
 		VMMain(argc, argv);				//function call to start TVMMain
 		return VM_STATUS_SUCCESS;
 	}
@@ -151,7 +149,19 @@ TVMStatus VMThreadID(TVMThreadIDRef threadref)
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 {
-	return 0;
+	if(stateref == NULL) //invalid
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+		
+	for(vector<TCB*>::iterator it = threadList.begin(); it != threadList.end(); ++it) {			// iterate through entire threadlist
+		if((*it)->threadID == thread){
+			stateref = &(*it)->threadState;
+			return VM_STATUS_SUCCESS;
+		}
+	}
+	
+	//thread does not exist
+	return VM_STATUS_ERROR_INVALID_ID;
+	
 } //TVMStatus VMThreadState()
 
 TVMStatus VMThreadSleep(TVMTick tick)
