@@ -3,27 +3,28 @@
 	Authors: John Garcia, Felix Ng
 
 	In this version:
-	TVMStatus VMStart -	started
-	TVMMainEntry VMLoadModule -	GIVEN
-	void VMUnloadModule - GIVEN
-	TVMStatus VMThreadCreate - not started
-	TVMStatus VMThreadDelete - not started
-	TVMStatus VMThreadActivate - not started
-	TVMStatus VMThreadTerminate - not started
-	TVMStatus VMThreadID - not started
-	TVMStatus VMThreadState - not started
-	TVMStatus VMThreadSleep - started
-	TVMStatus VMMutexCreate - not started
-	TVMStatus VMMutexDelete - not started
-	TVMStatus VMMutexQuery - not started
-	TVMStatus VMMutexAcquire - not started
-	TVMStatus VMMutexRelease - not started
-	TVMStatus VMFileOpen - not started
-	TVMStatus VMFileClose - not started  
-	TVMStatus VMFileRead - not started
-	TVMStatus VMFileWrite - started
-	TVMStatus VMFileSeek - not started
-	TVMStatus VMFilePrint - GIVEN
+	TVMStatus VMStart -				done
+	TVMMainEntry VMLoadModule -		GIVEN
+	void VMUnloadModule - 			GIVEN
+	TVMStatus VMThreadCreate - 		done
+	TVMStatus VMThreadDelete - 		not started
+	TVMStatus VMThreadActivate - 	started
+	TVMStatus VMThreadTerminate - 	not started
+	TVMStatus VMThreadID - 			started
+	TVMStatus VMThreadState - 		done
+	TVMStatus VMThreadSleep - 		done
+	TVMStatus VMMutexCreate - 		not started
+	TVMStatus VMMutexDelete - 		not started
+	TVMStatus VMMutexQuery - 		not started
+	TVMStatus VMMutexAcquire - 		not started
+	TVMStatus VMMutexRelease - 		not started
+	TVMStatus VMFileOpen - 			not started
+	TVMStatus VMFileClose - 		not started  
+	TVMStatus VMFileRead - 			not started
+	TVMStatus VMFileWrite - 		done
+	TVMStatus VMFileSeek - 			not started
+	TVMStatus VMFilePrint - 		GIVEN
+
 	In order to remove all system V messages: 
 	1. ipcs //to see msg queue
 	2. type this in cmd line: ipcs | grep q | awk '{print "ipcrm -q "$2""}' | xargs -0 bash -c
@@ -157,14 +158,12 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 	TMachineSignalState OldState; //local variable to suspend signals
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 
-	cout<< "here" << endl;
-
 	MachineContextCreate(&(*itr)->SMC, Skeleton, NULL, (*itr)->base, (*itr)->threadMemSize);
+	(*itr)->threadState = VM_THREAD_STATE_RUNNING; //set current thread to running
+	MachineContextSwitch(&threadList[0]->SMC, &(*itr)->SMC); //switch to new context here
 	//MachineContextCreate(&TCB->SMC, Skeleton, TCB, TCB->stack, TCB->size); //prof
 	/*MachineContextCreate(&threadList.at(thread)->SMC, Skeleton, NULL, 
 		threadList.at(thread)->base, threadList.at(thread)->threadMemSize);*/
-	(*itr)->threadState = VM_THREAD_STATE_RUNNING; //set current thread to running
-	MachineContextSwitch(&threadList[0]->SMC, &(*itr)->SMC); //switch to new context here
 
 	MachineResumeSignals(&OldState); //resume signals after creating thread
 	return VM_STATUS_SUCCESS;
@@ -177,7 +176,18 @@ TVMStatus VMThreadID(TVMThreadIDRef threadref)
 {
 	if(threadref == NULL) //invalid
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
-	return 0;
+
+	vector<TCB*>::iterator itr;
+	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
+	{
+		if(*threadref  == (*itr)->threadID) //thread does exist
+			break;
+
+		else if(itr == threadList.end()-1) //thread does not exist
+			return VM_STATUS_ERROR_INVALID_ID;
+	}
+
+	return VM_STATUS_SUCCESS; //successful retrieval
 } //TVMStatus VMThreadID()
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
