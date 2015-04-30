@@ -39,29 +39,16 @@
 	void MachineFileWrite - GIVEN
 	void MachineFileSeek - GIVEN
 	void MachineFileClose - GIVEN
+	In order to remove all system V messages: 
+	1. ipcs //to see msg queue
+	2. type this in cmd line: ipcs | grep q | awk '{print "ipcrm -q "$2""}' | xargs -0 bash -c
+	3. ipcs //should be clear now
 */
 
 #include "VirtualMachine.h"
 #include "Machine.h"
-#include <unistd.h> //standard symbolic constants and types
-#include <signal.h> //C library to handle signals
-#include <time.h> //time types
-#include <sys/types.h> //data types
-#include <sys/ipc.h> //interprocess communication access structure
-#include <sys/msg.h> //message queue structures
-#include <sys/stat.h> //data returned by the stat() function
-#include <sys/wait.h> //declarations for waiting
-#include <fcntl.h> //file control options
-#include <errno.h> //system error numbers
-#include <poll.h> //definitions for the poll() function
-#include <string.h> //basic string handling functions
-#include <stdlib.h> //standard library definitions
-#include <stdint.h> //integer types
-#include <stdio.h> //standard input/output
-#include <vector> //vector functions
-#include <map> //map functions
-#include <thread> //thread functions
 #include <iostream>
+#include <vector>
 #include <string>
 #include <stddef.h>
 using namespace std;
@@ -76,7 +63,7 @@ public:
 	TVMThreadID threadID;// to hold the threads ID, may be redundant, but might be easier to get
 	TVMThreadPriority threadPriority; // for the threads priority
 	TVMThreadState threadState; // for thread stack
-	TVMMemorySize memorySize;// for stack size
+	TVMMemorySize memSize;// for stack size
 	uint8_t * base;// this or another byte size type pointer for base of stack
 	TVMThreadEntry threadEntry;// for the threads entry function
 	void * threadEntryParam;// for the threads entry parameter
@@ -91,7 +78,8 @@ public:
 	}
 };
 
-vector<TCB> TCB_list;
+vector<TCB*> threadList;
+
 volatile uint16_t test = 0;
 volatile uint16_t globaltick = 0;
 
@@ -112,8 +100,8 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 	else //load successful
 	{
 		TCB VMMainTCB {0, VM_THREAD_PRIORITY_NORMAL, VM_THREAD_STATE_READY};
-		TCB_list.push_back(VMMainTCB);
-		VMMain(argc, argv); //function call to start TVMMain
+		threadList.push_back(&VMMainTCB);
+		VMMain(argc, argv);				//function call to start TVMMain
 		return VM_STATUS_SUCCESS;
 	}
 } //TVMStatus VMStart()
@@ -123,9 +111,21 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param, TVMMemorySize memsiz
 	if(entry == NULL || tid == NULL)
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
 	
-	stack_t* stacker = new stack_t;
-	TCB NewTCB {tid, prio, VM_THREAD_STATE_DEAD, memsize, (uint8_t*)stacker, entry, param};
+	TMachineSignalState OldState; //local variable to suspend
+	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 	
+	uint8_t *stack = new uint8_t[memsize];
+	
+	TCB *newThread = new(TCB); //start new thread
+	newThread->threadID = *tid;
+	newThread->threadPriority = prio;
+	newThread->threadState = VM_THREAD_STATE_DEAD;
+	newThread->base = stack;
+	newThread->memSize = memsize;
+	newThread->threadEntry = entry;
+	threadList.push_back(newThread); //store in vector of ptrs
+	
+	MachineResumeSignals(&OldState); //resume signals after creating thread
 	return VM_STATUS_SUCCESS;
 } //TVMStatus VMThreadCreate()
 
