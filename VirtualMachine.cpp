@@ -3,7 +3,7 @@
 	Authors: John Garcia, Felix Ng
 
 	In this version:
-	TVMStatus VMStart -	starting, need machineinit
+	TVMStatus VMStart -	started, done?
 	TVMMainEntry VMLoadModule -	GIVEN
 	void VMUnloadModule - GIVEN
 	TVMStatus VMThreadCreate - not started
@@ -12,7 +12,7 @@
 	TVMStatus VMThreadTerminate - not started
 	TVMStatus VMThreadID - not started
 	TVMStatus VMThreadState - not started
-	TVMStatus VMThreadSleep - starting
+	TVMStatus VMThreadSleep - starting, need multi threads
 	TVMStatus VMMutexCreate - not started
 	TVMStatus VMMutexDelete - not started
 	TVMStatus VMMutexQuery - not started
@@ -70,8 +70,28 @@ extern "C"
 {
 typedef void (*TVMMain)(int argc, char *argv[]);
 TVMMainEntry VMLoadModule(const char *module);
-//typedef void MachineRequestAlarm(useconds_t usec, TMachineAlarmCallback callback, void *calldata);
 
+class TCB {
+public:
+	TVMThreadID threadID;// to hold the threads ID, may be redundant, but might be easier to get
+	TVMThreadPriority threadPriority; // for the threads priority
+	TVMThreadState threadState; // for thread stack
+	TVMMemorySize memorySize;// for stack size
+	uint8_t * base;// this or another byte size type pointer for base of stack
+	TVMThreadEntry threadEntry;// for the threads entry function
+	void * threadEntryParam;// for the threads entry parameter
+	SMachineContext machineContext;// for the context to switch to/from the thread
+	TVMTick tick;// for the ticks that thread needs to wait
+	// Possibly need something to hold file return type
+	// Possibly hold a pointer or ID of mutex waiting on
+	// Possibly hold a list of held mutexes
+	void prints() {
+		cout << threadID << threadPriority << endl;
+
+	}
+};
+
+vector<TCB> TCB_list;
 volatile uint16_t test = 0;
 volatile uint16_t globaltick = 0;
 
@@ -82,11 +102,8 @@ void AlarmCallback(void *params, int result){
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
 	TVMMain VMMain = VMLoadModule(argv[0]); //load the module
-	
 	MachineInitialize(machinetickms); //initialize the machine with specified time
-	
 	useconds_t usec = tickms * 1000;
-	
 	MachineRequestAlarm(usec, (TMachineAlarmCallback)AlarmCallback, NULL); //starts the alarm tick
 	MachineEnableSignals(); //start the signals
 
@@ -94,36 +111,54 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 		return VM_STATUS_FAILURE;
 	else //load successful
 	{
-		cout << "opening " << argv[0] << endl;
+		TCB VMMainTCB {0, VM_THREAD_PRIORITY_NORMAL, VM_THREAD_STATE_READY};
+		TCB_list.push_back(VMMainTCB);
 		VMMain(argc, argv); //function call to start TVMMain
 		return VM_STATUS_SUCCESS;
 	}
 } //TVMStatus VMStart()
 
-TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param, 
-	TVMMemorySize memsize, TVMThreadPriority prio, TVMThreadIDRef tid)
-{} //TVMStatus VMThreadCreate()
+TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param, TVMMemorySize memsize, TVMThreadPriority prio, TVMThreadIDRef tid)
+{
+	if(entry == NULL || tid == NULL)
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+	
+	stack_t* stacker = new stack_t;
+	TCB NewTCB {tid, prio, VM_THREAD_STATE_DEAD, memsize, (uint8_t*)stacker, entry, param};
+	
+	return VM_STATUS_SUCCESS;
+} //TVMStatus VMThreadCreate()
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
-{} //TVMStatus VMThreadDelete()
+{
+	return 0;
+} //TVMStatus VMThreadDelete()
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
-{} //TVMStatus VMThreadActivate()
+{
+	return 0;
+} //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
-{} //TVMStatus VMThreadTerminate()
+{
+	return 0;
+} //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
-{} //TVMStatus VMThreadID()
+{
+	return 0;
+} //TVMStatus VMThreadID()
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
-{} //TVMStatus VMThreadState()
+{
+	return 0;
+} //TVMStatus VMThreadState()
 
 TVMStatus VMThreadSleep(TVMTick tick)
 {
 	if(tick == VM_TIMEOUT_INFINITE)
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
-		
+
 	globaltick = tick;
 
 	while (globaltick > 0) {};
@@ -132,28 +167,44 @@ TVMStatus VMThreadSleep(TVMTick tick)
 } //TVMStatus VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
-{} //TVMStatus VMMutexCreate()
+{
+	return 0;
+} //TVMStatus VMMutexCreate()
 
 TVMStatus VMMutexDelete(TVMMutexID mutex)
-{} //TVMStatus VMMutexDelete()
+{
+	return 0;
+} //TVMStatus VMMutexDelete()
 
 TVMStatus VMMutexQuery(TVMMutexID mutex, TVMThreadIDRef ownerref)
-{} //TVMStatus VMMutexQuery()
+{
+	return 0;
+} //TVMStatus VMMutexQuery()
 
 TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
-{} //TVMStatus VMMutexAcquire()
+{
+	return 0;
+} //TVMStatus VMMutexAcquire()
 
 TVMStatus VMMutexRelease(TVMMutexID mutex)
-{} //TVMStatus VMMutexRelease()
+{
+	return 0;
+} //TVMStatus VMMutexRelease()
 
 TVMStatus VMFileOpen(const char *filename, int flags, int mode, int *filedescriptor)
-{} //TVMStatus VMFileOpen()
+{
+	return 0;
+} //TVMStatus VMFileOpen()
 
 TVMStatus VMFileClose(int filedescriptor)
-{} //TVMStatus VMFileClose()
+{
+	return 0;
+} //TVMStatus VMFileClose()
 
 TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
-{} //TVMStatus VMFileRead()
+{
+	return 0;
+} //TVMStatus VMFileRead()
 
 TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 {
@@ -176,5 +227,7 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 } //TVMStatus VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
-{} //TVMStatus VMFileSeek()
+{
+	return 0;
+} //TVMStatus VMFileSeek()
 } //extern "C"
