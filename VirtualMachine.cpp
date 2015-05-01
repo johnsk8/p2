@@ -203,8 +203,8 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 	readyQ.push(*itr); //push it into the ready queue
 	MachineContextCreate(&(*itr)->SMC, Skeleton, (*itr)->vptr, (*itr)->base, (*itr)->threadMemSize);
 	(*itr)->threadState = VM_THREAD_STATE_RUNNING; //set current thread to running
-	MachineContextSwitch(&(*itr)->SMC, &threadList[1]->SMC); //switch to new context here
-	//MachineContextSwitch(&threadList[0]->SMC, &(*itr)->SMC); //switch to new context here
+	//MachineContextSwitch(&(*itr)->SMC, &threadList[1]->SMC); //switch to new context here
+	MachineContextSwitch(&threadList[1]->SMC, &(*itr)->SMC); //switch to new context here
 
 	if((*itr)->threadState == VM_THREAD_PRIORITY_HIGH)
 		highPrio.push(*itr); //push into high prio queue
