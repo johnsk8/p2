@@ -65,6 +65,7 @@ vector<TCB*> threadList; //global ptr list to hold threads
 queue<TCB*> highPrio; //high priority queue
 queue<TCB*> normPrio; //normal priority queue
 queue<TCB*> lowPrio; //low priority queue
+queue<TCB*> readyQ; //ready state for threads
 
 void AlarmCallBack(void *param, int result)
 {
@@ -74,7 +75,9 @@ void AlarmCallBack(void *param, int result)
 void Skeleton(void* param)
 {
   cout << "inside skeleton" << endl;
-  //deal with thread, call VMThreadTerminate when thread returns
+  TCB* curTCB = (TCB*)param;
+  curTCB->threadEntry(curTCB->vptr); //deal with thread
+  VMThreadTerminate(curTCB->threadID); //call VMThreadTerminate when thread returns
 } //Skeleton()
 
 void idleFunction(void* TCBref)
@@ -87,6 +90,23 @@ void idleFunction(void* TCBref)
       MachineResumeSignals(&OldState);
     } //this is idling while we are in the idle state
 } //idleFunction()
+
+/*void Scheduler(TCB* thread)
+{
+	//if(highPrio.front()->threadPrior == VM_THREAD_STATE_READY)
+		//switch
+	//else if(normPrio.front() == VM_THREAD_STATE_READY)
+		//switch
+	//else if(lowPrio.front() == VM_THREAD_STATE_READY)
+		//switch
+	//else
+	//	idleFunction(); //just run the idle thread
+
+	//if theres a high prior ready thread, then switch
+	//if theres a norm prior ready thread, then switch
+	//if theres a low prior ready thread, then switch
+	//else just run the idle thread
+} //void Scheduler()*/
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
@@ -133,6 +153,7 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 	newThread->threadMemSize = memsize;
 	newThread->threadPrior = prio;
 	newThread->base = stack;
+	newThread->threadState = VM_THREAD_STATE_DEAD;
 	newThread->threadID = *tid;
 	threadList.push_back(newThread); //store in vector of ptrs
 	
@@ -141,7 +162,23 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 } //TVMStatus VMThreadCreate()
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
-{return 0;} //TVMStatus VMThreadDelete()
+{
+	/*vector<TCB*>::iterator itr;
+	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
+	{
+		if(thread  == (*itr)->threadID) //thread does exist
+		{
+			if((*itr)->threadState == VM_THREAD_STATE_DEAD) //dead state check
+				return VM_STATUS_ERROR_INVALID_STATE;
+			break;
+		}
+
+		else if(itr == threadList.end()-1) //thread does not exist
+			return VM_STATUS_ERROR_INVALID_ID;
+	}*/ //iterate through the entire thread list
+	//return VM_STATUS_SUCCESS;
+	return 0;
+} //TVMStatus VMThreadDelete()
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
 {
@@ -162,9 +199,12 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 	TMachineSignalState OldState; //local variable to suspend signals
 	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
 
-	MachineContextCreate(&(*itr)->SMC, Skeleton, NULL, (*itr)->base, (*itr)->threadMemSize);
+	(*itr)->threadState = VM_THREAD_STATE_READY; //ready the thread
+	readyQ.push(*itr); //push it into the ready queue
+	MachineContextCreate(&(*itr)->SMC, Skeleton, (*itr)->vptr, (*itr)->base, (*itr)->threadMemSize);
 	(*itr)->threadState = VM_THREAD_STATE_RUNNING; //set current thread to running
-	MachineContextSwitch(&threadList[0]->SMC, &(*itr)->SMC); //switch to new context here
+	MachineContextSwitch(&(*itr)->SMC, &threadList[1]->SMC); //switch to new context here
+	//MachineContextSwitch(&threadList[0]->SMC, &(*itr)->SMC); //switch to new context here
 
 	if((*itr)->threadState == VM_THREAD_PRIORITY_HIGH)
 		highPrio.push(*itr); //push into high prio queue
@@ -172,6 +212,8 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 		normPrio.push(*itr); //push into norm prio queue
 	if((*itr)->threadState == VM_THREAD_PRIORITY_LOW)
 		lowPrio.push(*itr); //push into low prio queue
+	//if((*itr)->threadState == VM_THREAD_STATE_WAITING)
+	//	Scheduler(*itr); //call to schedule threads since waiting
 
 	//MachineContextCreate(&TCB->SMC, Skeleton, TCB, TCB->stack, TCB->size); //prof
 	/*MachineContextCreate(&threadList.at(thread)->SMC, Skeleton, NULL, 
@@ -182,7 +224,23 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 } //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
-{return 0;} //TVMStatus VMThreadTerminate()
+{
+	/*vector<TCB*>::iterator itr;
+	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
+	{
+		if(thread  == (*itr)->threadID) //thread does exist
+		{
+			if((*itr)->threadState == VM_THREAD_STATE_DEAD) //dead state check
+				return VM_STATUS_ERROR_INVALID_STATE;
+			break;
+		}
+
+		else if(itr == threadList.end()-1) //thread does not exist
+			return VM_STATUS_ERROR_INVALID_ID;
+	}*/ //iterate through the entire thread list
+	//return VM_STATUS_SUCCESS;
+	return 0;
+} //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
 {
@@ -212,7 +270,7 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 	{
 		if((*itr)->threadID == thread)
 		{
-			*stateref = (*itr)->threadState;
+			*stateref = (*itr)->threadState; //assign thread state here
 			return VM_STATUS_SUCCESS;
 		}
 	} //iterate through the entire thread list
@@ -265,7 +323,6 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 
 	else //failed to write
 		return VM_STATUS_FAILURE;
-
 } //TVMStatus VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
