@@ -107,8 +107,8 @@ TCB *findThread(TVMThreadID thread)
 {
 	for(int i = 1; i < threadList.size(); i++)
 	{
-		if(thread == threadList[i]->threadID) //thread does exist
-			return threadList[i];
+		if(thread == threadList[i]->threadID)
+			return threadList[i]; //thread does exist
 	}
 	return NULL; //thread does not exist
 } //TCB *findThread()
@@ -158,7 +158,7 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 	TVMMemorySize memsize, TVMThreadPriority prio, TVMThreadIDRef tid)
 {
 	TMachineSignalState OldState; //local variable to suspend
-	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
+	MachineSuspendSignals(&OldState); //suspend signals
 
 	if(entry == NULL || tid == NULL) //invalid
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
@@ -173,33 +173,30 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 	newThread->threadID = *tid;
 	threadList.push_back(newThread); //store in vector of ptrs
 	
-	MachineResumeSignals(&OldState); //resume signals after creating thread
+	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
 } //TVMStatus VMThreadCreate()
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
 {
-	/*vector<TCB*>::iterator itr;
-	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
-	{
-		if(thread  == (*itr)->threadID) //thread does exist
-		{
-			if((*itr)->threadState == VM_THREAD_STATE_DEAD) //dead state check
-				return VM_STATUS_ERROR_INVALID_STATE;
-			break;
-		}
+	/*TMachineSignalState OldState; //local variable to suspend signals
+	MachineSuspendSignals(&OldState); //suspend signals
+	
+	TCB *myThread = findThread(thread);
+	if(myThread == NULL) //check if thread exists
+		return VM_STATUS_ERROR_INVALID_ID;
+	if(myThread->threadState == VM_THREAD_STATE_DEAD) //dead state check
+		return VM_STATUS_ERROR_INVALID_STATE;
 
-		else if(itr == threadList.end()-1) //thread does not exist
-			return VM_STATUS_ERROR_INVALID_ID;
-	}*/ //iterate through the entire thread list
-	//return VM_STATUS_SUCCESS;
+	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;*/
 	return 0;
 } //TVMStatus VMThreadDelete()
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
 {
 	TMachineSignalState OldState; //local variable to suspend signals
-	MachineSuspendSignals(&OldState); //suspend signals in order to create thread
+	MachineSuspendSignals(&OldState); //suspend signals
 
 	TCB *myThread = findThread(thread); //call to find the thread id
 	if(myThread == NULL) //check if thread exists
@@ -219,26 +216,23 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 			pushThread(myThread); //push into its proper priority
 	} //prior check and update
 
-	MachineResumeSignals(&OldState); //resume signals after creating thread
+	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
 } //TVMStatus VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
 {
-	/*vector<TCB*>::iterator itr;
-	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
-	{
-		if(thread  == (*itr)->threadID) //thread does exist
-		{
-			if((*itr)->threadState == VM_THREAD_STATE_DEAD) //dead state check
-				return VM_STATUS_ERROR_INVALID_STATE;
-			break;
-		}
+	/*TMachineSignalState OldState; //local variable to suspend signals
+	MachineSuspendSignals(&OldState); //suspend signals
+	
+	TCB *myThread = findThread(thread);
+	if(myThread == NULL) //check if thread exists
+		return VM_STATUS_ERROR_INVALID_ID;
+	if(myThread->threadState == VM_THREAD_STATE_DEAD) //dead state check
+		return VM_STATUS_ERROR_INVALID_STATE;
 
-		else if(itr == threadList.end()-1) //thread does not exist
-			return VM_STATUS_ERROR_INVALID_ID;
-	}*/ //iterate through the entire thread list
-	//return VM_STATUS_SUCCESS;
+	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;*/
 	return 0;
 } //TVMStatus VMThreadTerminate()
 
@@ -280,12 +274,14 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 
 TVMStatus VMThreadSleep(TVMTick tick)
 {
+	TMachineSignalState OldState; //local variable to suspend signals
+	MachineSuspendSignals(&OldState); //suspend signals
 	if(tick == VM_TIMEOUT_INFINITE) //invalid
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
 
 	globaltick = tick; //set tick as globaltick
-
 	while (globaltick > 0) {}; //go to sleep until reaches zero
+	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS; //success sleep after reaches zero
 } //TVMStatus VMThreadSleep()
 
