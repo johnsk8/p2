@@ -93,11 +93,11 @@ void idleFunction(void* TCBref)
 
 void pushThread(TCB *myThread)
 {
-	if(myThread->threadState == VM_THREAD_PRIORITY_HIGH)
+	if(myThread->threadPrior == VM_THREAD_PRIORITY_HIGH)
 		highPrio.push(myThread); //push into high prio queue
-	if(myThread->threadState == VM_THREAD_PRIORITY_NORMAL)
+	if(myThread->threadPrior == VM_THREAD_PRIORITY_NORMAL)
 		normPrio.push(myThread); //push into norm prio queue
-	if(myThread->threadState == VM_THREAD_PRIORITY_LOW)
+	if(myThread->threadPrior == VM_THREAD_PRIORITY_LOW)
 		lowPrio.push(myThread); //push into low prio queue
 	if(myThread->threadState == VM_THREAD_STATE_READY)
 		readyQ.push(myThread); //push into the ready queue
