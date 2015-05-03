@@ -1,4 +1,4 @@
-/*A virtual machine for ECS 150
+/*	A virtual machine for ECS 150
 	Filename: VirtualMachine.cpp
 	Authors: John Garcia, Felix Ng
 
@@ -6,8 +6,8 @@
 	TVMStatus VMStart -				done
 	TVMStatus VMThreadCreate - 		done
 	TVMStatus VMThreadDelete - 		done
-	TVMStatus VMThreadActivate - 	started
-	TVMStatus VMThreadTerminate - 	started
+	TVMStatus VMThreadActivate - 	done
+	TVMStatus VMThreadTerminate - 	done
 	TVMStatus VMThreadID - 			done
 	TVMStatus VMThreadState - 		done
 	TVMStatus VMThreadSleep - 		done
@@ -16,11 +16,11 @@
 	TVMStatus VMMutexQuery - 		not started
 	TVMStatus VMMutexAcquire - 		not started
 	TVMStatus VMMutexRelease - 		not started
-	TVMStatus VMFileOpen - 			not started
-	TVMStatus VMFileClose - 		not started  
-	TVMStatus VMFileRead - 			not started
+	TVMStatus VMFileOpen - 			done
+	TVMStatus VMFileClose - 		done  
+	TVMStatus VMFileRead - 			done
 	TVMStatus VMFileWrite - 		done
-	TVMStatus VMFileSeek - 			not started
+	TVMStatus VMFileSeek - 			done
 	TVMStatus VMFilePrint - 		GIVEN
 
 	In order to remove all system V messages: 
@@ -413,6 +413,7 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
   	currentThread->threadState = VM_THREAD_STATE_WAITING;
 	MachineFileRead(filedescriptor, data, *length, FileCallBack, currentThread);
 	Scheduler();
+	*length = currentThread->fileResult;
 
 	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
@@ -430,24 +431,10 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	MachineFileWrite(filedescriptor, data, *length, FileCallBack, currentThread);
   	Scheduler();
+  	*length = currentThread->fileResult;
 
   	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
-
-	/*if(data == NULL || length == NULL) //invalid input
-		return VM_STATUS_ERROR_INVALID_PARAMETER;
-
-	if(write(filedescriptor, data, *length) > -1) //write to file
-	{
-		MachineResumeSignals(&OldState); //resume signals
-		return VM_STATUS_SUCCESS;
-	}
-
-	else //failed to write
-	{	
-		MachineResumeSignals(&OldState); //resume signals
-		return VM_STATUS_FAILURE;
-	}*/
 } //VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
@@ -458,7 +445,6 @@ TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
   	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	MachineFileSeek(filedescriptor, offset, whence, FileCallBack, currentThread);
   	Scheduler();
-
   	*newoffset = currentThread->fileResult;
 
   	MachineResumeSignals(&OldState); //resume signals
