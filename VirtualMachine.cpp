@@ -27,6 +27,9 @@
 	1. ipcs //to see msg queue
 	2. type this in cmd line: ipcs | grep q | awk '{print "ipcrm -q "$2""}' | xargs -0 bash -c
 	3. ipcs //should be clear now
+
+	In order to remove vm from activity moniter:
+	type in command line: killall -9 vm
 */
 
 #include "VirtualMachine.h"
@@ -394,8 +397,8 @@ TVMStatus VMFileClose(int filedescriptor)
 	TMachineSignalState OldState; //local variable to suspend signals
   	MachineSuspendSignals(&OldState); //suspend signals
 
-  	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	MachineFileClose(filedescriptor, FileCallBack, currentThread);
+  	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	Scheduler();
 
   	MachineResumeSignals(&OldState); //resume signals
@@ -410,14 +413,13 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
 	if(data == NULL || length == NULL)
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
 	
-  	currentThread->threadState = VM_THREAD_STATE_WAITING;
 	MachineFileRead(filedescriptor, data, *length, FileCallBack, currentThread);
+	currentThread->threadState = VM_THREAD_STATE_WAITING;
 	Scheduler();
 	*length = currentThread->fileResult;
 
 	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
-	//return 0;
 } //VMFileRead()
 
 TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
@@ -428,8 +430,8 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   	if(data == NULL || length == NULL)
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
 
-  	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	MachineFileWrite(filedescriptor, data, *length, FileCallBack, currentThread);
+  	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	Scheduler();
   	*length = currentThread->fileResult;
 
@@ -442,8 +444,8 @@ TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
 	TMachineSignalState OldState; //local variable to suspend signals
   	MachineSuspendSignals(&OldState); //suspend signals
 
-  	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	MachineFileSeek(filedescriptor, offset, whence, FileCallBack, currentThread);
+  	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	Scheduler();
   	*newoffset = currentThread->fileResult;
 
