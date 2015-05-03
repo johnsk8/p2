@@ -4,15 +4,13 @@
 
 	In this version:
 	TVMStatus VMStart -				done
-	TVMMainEntry VMLoadModule -		GIVEN
-	void VMUnloadModule - 			GIVEN
 	TVMStatus VMThreadCreate - 		done
-	TVMStatus VMThreadDelete - 		not started
+	TVMStatus VMThreadDelete - 		started
 	TVMStatus VMThreadActivate - 	started
-	TVMStatus VMThreadTerminate - 	not started
-	TVMStatus VMThreadID - 			started
+	TVMStatus VMThreadTerminate - 	started
+	TVMStatus VMThreadID - 			done
 	TVMStatus VMThreadState - 		done
-	TVMStatus VMThreadSleep - 		done
+	TVMStatus VMThreadSleep - 		started
 	TVMStatus VMMutexCreate - 		not started
 	TVMStatus VMMutexDelete - 		not started
 	TVMStatus VMMutexQuery - 		not started
@@ -62,20 +60,32 @@ TVMMainEntry VMLoadModule(const char *module); //load module spec
 volatile uint16_t globaltick = 0; //vol ticks
 TCB *idle = new TCB; //global idle thread
 TCB *currentThread = new TCB; //global current running thread
-vector<TCB*> threadList; //global ptr list to hold threads
+//TCB *oldThread = new TCB; //old thread
+vector<TCB*> threadList; //global vector list to hold threads
+vector<TCB*> sleepList; // sleep queue
 queue<TCB*> highPrio; //high priority queue
 queue<TCB*> normPrio; //normal priority queue
 queue<TCB*> lowPrio; //low priority queue
-queue<TCB*> readyQ; //ready state for threads
+void pushThread(TCB*);
 
 void AlarmCallBack(void *param, int result)
 {
-	globaltick--; //dec tick time
+	for(vector<TCB*>::iterator itr = sleepList.begin(); itr != sleepList.end(); ++itr)
+    {
+      if((*itr)->ticker > 0) //if still more ticks
+        (*itr)->ticker--;
+
+      else
+      {
+       	(*itr)->threadState = VM_THREAD_STATE_READY;
+        pushThread(*itr);
+        sleepList.erase(itr);
+      }
+    }
 } //myFileCallBack()
 
 void Skeleton(void* param)
 {
-  //cout << "inside skeleton" << endl;
   currentThread->threadEntry(param); //deal with thread
   VMThreadTerminate(currentThread->threadID); //terminate thread
 } //Skeleton()
@@ -83,12 +93,12 @@ void Skeleton(void* param)
 void idleFunction(void* TCBref)
 {
 	TMachineSignalState OldState; //a state
-    MachineEnableSignals(); //start the signals
-    while(1)
-    {
-      MachineSuspendSignals(&OldState);
-      MachineResumeSignals(&OldState);
-    } //this is idling while we are in the idle state
+  MachineEnableSignals(); //start the signals
+  while(1)
+  {
+    MachineSuspendSignals(&OldState);
+    MachineResumeSignals(&OldState);
+  } //this is idling while we are in the idle state
 } //idleFunction()
 
 void pushThread(TCB *myThread)
@@ -99,24 +109,23 @@ void pushThread(TCB *myThread)
 		normPrio.push(myThread); //push into norm prio queue
 	if(myThread->threadPrior == VM_THREAD_PRIORITY_LOW)
 		lowPrio.push(myThread); //push into low prio queue
-	if(myThread->threadState == VM_THREAD_STATE_READY)
-		readyQ.push(myThread); //push into the ready queue
 } //void pushThread()
 
 TCB *findThread(TVMThreadID thread)
 {
-	for(int i = 1; i < threadList.size(); i++)
+	vector<TCB*>::iterator itr;
+	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
 	{
-		if(thread == threadList[i]->threadID)
-			return threadList[i]; //thread does exist
-	}
+		if(thread  == (*itr)->threadID)
+			return (*itr); //thread does exist
+	} //iterate though the list of threads
 	return NULL; //thread does not exist
 } //TCB *findThread()
 
 void Scheduler(TCB *myThread)
 {
-	if(currentThread->threadState == VM_THREAD_STATE_READY)
-		pushThread(currentThread); //push into its proper priority
+	//if(currentThread->threadState == VM_THREAD_STATE_READY)
+	//	pushThread(currentThread); //push into its proper priority
 
 	TCB *oldThread = findThread(currentThread->threadID); //get cur threads tcb
 	currentThread = myThread; //update current thread
@@ -132,8 +141,8 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 	MachineRequestAlarm(usec, (TMachineAlarmCallback)AlarmCallBack, NULL); //starts the alarm tick
 	MachineEnableSignals(); //start the signals
 
-	if(VMMain == NULL) //fail to load module
-		return 0;
+	if(VMMain == NULL) 
+		return 0; //fail to load module
 
 	else //load successful
 	{
@@ -145,10 +154,15 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 
 		idle->threadID = 0; //idle thread first in array of threads
 		idle->threadState = VM_THREAD_STATE_DEAD;
+		idle->threadPrior = VM_THREAD_PRIORITY_LOW;
 		idle->threadEntry = idleFunction;
+		uint8_t *stacker = new uint8_t[0x100000];
+		idle->base = stacker; //base for idle stack
+		MachineContextCreate(&(idle)->SMC, idle->threadEntry, NULL, 
+			stacker, 0x100000);
 
-		threadList.push_back(idle);
-		threadList.push_back(VMMainTCB);
+		threadList.push_back(idle); //pos 0 in threadList
+		threadList.push_back(VMMainTCB); //pos 1 in threadList
 		VMMain(argc, argv); //function call to start TVMMain
 		return VM_STATUS_SUCCESS;
 	}
@@ -179,18 +193,29 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
 {
-	/*TMachineSignalState OldState; //local variable to suspend signals
+	TMachineSignalState OldState; //local variable to suspend signals
 	MachineSuspendSignals(&OldState); //suspend signals
 	
-	TCB *myThread = findThread(thread);
-	if(myThread == NULL) //check if thread exists
-		return VM_STATUS_ERROR_INVALID_ID;
-	if(myThread->threadState == VM_THREAD_STATE_DEAD) //dead state check
-		return VM_STATUS_ERROR_INVALID_STATE;
+	vector<TCB*>::iterator itr;
+	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
+	{
+		if(thread  == (*itr)->threadID) //thread exists check
+		{
+			if((*itr)->threadState != VM_THREAD_STATE_DEAD)
+				return VM_STATUS_ERROR_INVALID_STATE; //not in dead state check
+			else
+			{
+				threadList.erase(itr); //delete the thread
+				break; //we found it now lets get outta here
+			}
+		}
+
+		if(itr == threadList.end()-1) //thread does not exist check
+			return VM_STATUS_ERROR_INVALID_ID;
+	} //iterate though the list of threads
 
 	MachineResumeSignals(&OldState); //resume signals
-	return VM_STATUS_SUCCESS;*/
-	return 0;
+	return VM_STATUS_SUCCESS;
 } //TVMStatus VMThreadDelete()
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
@@ -201,20 +226,22 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 	TCB *myThread = findThread(thread); //call to find the thread id
 	if(myThread == NULL) //check if thread exists
 		return VM_STATUS_ERROR_INVALID_ID;
-	if(myThread->threadState == VM_THREAD_STATE_DEAD) //dead state check
+	if(myThread->threadState != VM_THREAD_STATE_DEAD) //dead state check
 		return VM_STATUS_ERROR_INVALID_STATE;
 
-	MachineContextCreate(&(myThread)->SMC, Skeleton, (myThread)->vptr, 
-		(myThread)->base, (myThread)->threadMemSize); //create context here
-	(myThread)->threadState = VM_THREAD_STATE_READY; //set current thread to running
+	MachineContextCreate(&(myThread)->SMC, Skeleton, myThread->vptr, 
+		myThread->base, myThread->threadMemSize); //create context here
+	myThread->threadState = VM_THREAD_STATE_READY; //set current thread to running
 
-	if(currentThread->threadPrior >= myThread->threadPrior)
+	Scheduler(myThread);
+
+	/*if(currentThread->threadPrior >= myThread->threadPrior)
 	{
 		if(currentThread->threadState == VM_THREAD_STATE_WAITING)
 			Scheduler(myThread); //call to schedule thread
 		else
 			pushThread(myThread); //push into its proper priority
-	} //prior check and update
+	} //prior check and update*/
 
 	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
@@ -222,7 +249,7 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
 {
-	/*TMachineSignalState OldState; //local variable to suspend signals
+	TMachineSignalState OldState; //local variable to suspend signals
 	MachineSuspendSignals(&OldState); //suspend signals
 	
 	TCB *myThread = findThread(thread);
@@ -231,15 +258,18 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
 	if(myThread->threadState == VM_THREAD_STATE_DEAD) //dead state check
 		return VM_STATUS_ERROR_INVALID_STATE;
 
+	MachineContextSwitch(&(myThread)->SMC, &(idle)->SMC);
+
 	MachineResumeSignals(&OldState); //resume signals
-	return VM_STATUS_SUCCESS;*/
-	return 0;
+	return VM_STATUS_SUCCESS;
 } //TVMStatus VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
 {
 	if(threadref == NULL) //invalid
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
+
+	*threadref = currentThread->threadID;
 
 	vector<TCB*>::iterator itr;
 	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
@@ -275,14 +305,19 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 TVMStatus VMThreadSleep(TVMTick tick)
 {
 	TMachineSignalState OldState; //local variable to suspend signals
-	MachineSuspendSignals(&OldState); //suspend signals
-	if(tick == VM_TIMEOUT_INFINITE) //invalid
-		return VM_STATUS_ERROR_INVALID_PARAMETER;
+    MachineSuspendSignals(&OldState); //suspend signals
 
-	globaltick = tick; //set tick as globaltick
-	while (globaltick > 0) {}; //go to sleep until reaches zero
-	MachineResumeSignals(&OldState); //resume signals
-	return VM_STATUS_SUCCESS; //success sleep after reaches zero
+    if(tick == VM_TIMEOUT_INFINITE) //invalid
+        return VM_STATUS_ERROR_INVALID_PARAMETER;
+ 
+    currentThread->threadState = VM_THREAD_STATE_WAITING;
+    currentThread->ticker = tick; //set tick as globaltick
+    sleepList.push_back(currentThread);
+
+    MachineContextSwitch(&(currentThread)->SMC, &(idle)->SMC);
+
+    MachineResumeSignals(&OldState); //resume signals
+    return VM_STATUS_SUCCESS; //success sleep after reaches zero
 } //TVMStatus VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
@@ -313,10 +348,8 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 {
 	if(data == NULL || length == NULL) //invalid input
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
-
 	if(write(filedescriptor, data, *length) > -1) //write to file
 		return VM_STATUS_SUCCESS;
-
 	else //failed to write
 		return VM_STATUS_FAILURE;
 } //TVMStatus VMFileWrite()
