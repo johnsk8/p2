@@ -50,7 +50,7 @@ class TCB
 	void *vptr; //for the threads entry parameter
 	SMachineContext SMC; //for the context to switch to/from the thread
 	TVMTick ticker; //for the ticks that thread needs to wait
-	//possibly need something to hold file return type
+	int fileResult; //to hold file return type
 	//possibly hold a pointer or ID of mutex waiting on
 	//possibly hold a list of held mutexes
 }; //class TCB
@@ -89,6 +89,7 @@ void AlarmCallBack(void *param, int result)
 void FileCallBack(void *param, int result)
 {
 	currentThread->threadState = VM_THREAD_STATE_WAITING;
+	((TCB*)param)->fileResult = result;
 	pushThread((TCB*)param);
 } //FileCallBack()
 
@@ -382,29 +383,85 @@ TVMStatus VMFileOpen(const char *filename, int flags, int mode, int *filedescrip
 	MachineFileOpen(filename, flags, mode, FileCallBack, currentThread); //machine opens file
 	currentThread->threadState = VM_THREAD_STATE_WAITING;
 	Scheduler();
+	*filedescriptor = currentThread->fileResult;
 
 	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
 } //VMFileOpen()
 
 TVMStatus VMFileClose(int filedescriptor)
-{return 0;} //VMFileClose()
+{
+	TMachineSignalState OldState; //local variable to suspend signals
+  	MachineSuspendSignals(&OldState); //suspend signals
+
+  	currentThread->threadState = VM_THREAD_STATE_WAITING;
+  	MachineFileClose(filedescriptor, FileCallBack, currentThread);
+  	Scheduler();
+
+  	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;
+} //VMFileClose()
 
 TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
-{return 0;} //VMFileRead()
+{
+	TMachineSignalState OldState; //local variable to suspend signals
+  	MachineSuspendSignals(&OldState); //suspend signals
+
+	if(data == NULL || length == NULL)
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+	
+  	currentThread->threadState = VM_THREAD_STATE_WAITING;
+	MachineFileRead(filedescriptor, data, *length, FileCallBack, currentThread);
+	Scheduler();
+
+	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;
+	//return 0;
+} //VMFileRead()
 
 TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 {
-	if(data == NULL || length == NULL) //invalid input
+	TMachineSignalState OldState; //local variable to suspend signals
+  	MachineSuspendSignals(&OldState); //suspend signals
+
+  	if(data == NULL || length == NULL)
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+
+  	currentThread->threadState = VM_THREAD_STATE_WAITING;
+  	MachineFileWrite(filedescriptor, data, *length, FileCallBack, currentThread);
+  	Scheduler();
+
+  	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;
+
+	/*if(data == NULL || length == NULL) //invalid input
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
 
 	if(write(filedescriptor, data, *length) > -1) //write to file
+	{
+		MachineResumeSignals(&OldState); //resume signals
 		return VM_STATUS_SUCCESS;
+	}
 
 	else //failed to write
+	{	
+		MachineResumeSignals(&OldState); //resume signals
 		return VM_STATUS_FAILURE;
+	}*/
 } //VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
-{return 0;} //VMFileSeek()
+{
+	TMachineSignalState OldState; //local variable to suspend signals
+  	MachineSuspendSignals(&OldState); //suspend signals
+
+  	currentThread->threadState = VM_THREAD_STATE_WAITING;
+  	MachineFileSeek(filedescriptor, offset, whence, FileCallBack, currentThread);
+  	Scheduler();
+
+  	*newoffset = currentThread->fileResult;
+
+  	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;
+} //VMFileSeek()
 } //extern "C"
