@@ -84,7 +84,13 @@ void AlarmCallBack(void *param, int result)
     	}
   	}
   	Scheduler();
-} //myFileCallBack()
+} //AlarmCallBack()
+
+void FileCallBack(void *param, int result)
+{
+	currentThread->threadState = VM_THREAD_STATE_WAITING;
+	pushThread((TCB*)param);
+} //FileCallBack()
 
 void Skeleton(void* param)
 {
@@ -111,7 +117,7 @@ void pushThread(TCB *myThread)
 		normPrio.push(myThread); //push into norm prio queue
 	if(myThread->threadPrior == VM_THREAD_PRIORITY_LOW)
 		lowPrio.push(myThread); //push into low prio queue
-} //void pushThread()
+} //pushThread()
 
 TCB *findThread(TVMThreadID thread)
 {
@@ -122,7 +128,7 @@ TCB *findThread(TVMThreadID thread)
 			return (*itr); //thread does exist
 	} //iterate though the list of threads
 	return NULL; //thread does not exist
-} //TCB *findThread()
+} //findThread()
 
 void Scheduler()
 {
@@ -168,7 +174,7 @@ void Scheduler()
 			MachineContextSwitch(&(oldThread)->SMC, &(newThread)->SMC); //switch contexts
 		}
 	}
-} //void Scheduler()
+} //Scheduler()
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
@@ -202,7 +208,7 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 		VMMain(argc, argv); //function call to start TVMMain
 		return VM_STATUS_SUCCESS;
 	}
-} //TVMStatus VMStart()
+} //VMStart()
 
 TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param, 
 	TVMMemorySize memsize, TVMThreadPriority prio, TVMThreadIDRef tid)
@@ -225,7 +231,7 @@ TVMStatus VMThreadCreate(TVMThreadEntry entry, void *param,
 	
 	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
-} //TVMStatus VMThreadCreate()
+} //VMThreadCreate()
 
 TVMStatus VMThreadDelete(TVMThreadID thread)
 {
@@ -251,7 +257,7 @@ TVMStatus VMThreadDelete(TVMThreadID thread)
 
 	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
-} //TVMStatus VMThreadDelete()
+} //VMThreadDelete()
 
 TVMStatus VMThreadActivate(TVMThreadID thread)
 {
@@ -276,7 +282,7 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
 
 	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
-} //TVMStatus VMThreadActivate()
+} //VMThreadActivate()
 
 TVMStatus VMThreadTerminate(TVMThreadID thread)
 {
@@ -293,7 +299,7 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
 
 	MachineResumeSignals(&OldState); //resume signals
 	return VM_STATUS_SUCCESS;
-} //TVMStatus VMThreadTerminate()
+} //VMThreadTerminate()
 
 TVMStatus VMThreadID(TVMThreadIDRef threadref)
 {
@@ -313,7 +319,7 @@ TVMStatus VMThreadID(TVMThreadIDRef threadref)
 	} //iterate though the list of threads*/
 
 	return VM_STATUS_SUCCESS; //successful retrieval
-} //TVMStatus VMThreadID()
+} //VMThreadID()
 
 TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 {
@@ -331,7 +337,7 @@ TVMStatus VMThreadState(TVMThreadID thread, TVMThreadStateRef stateref)
 	} //iterate through the entire thread list
 	
 	return VM_STATUS_ERROR_INVALID_ID; //thread does not exist
-} //TVMStatus VMThreadState()
+} //VMThreadState()
 
 TVMStatus VMThreadSleep(TVMTick tick)
 {
@@ -348,31 +354,44 @@ TVMStatus VMThreadSleep(TVMTick tick)
 
   	MachineResumeSignals(&OldState); //resume signals
   	return VM_STATUS_SUCCESS; //success sleep after reaches zero
-} //TVMStatus VMThreadSleep()
+} //VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
-{return 0;} //TVMStatus VMMutexCreate()
+{return 0;} //VMMutexCreate()
 
 TVMStatus VMMutexDelete(TVMMutexID mutex)
-{return 0;} //TVMStatus VMMutexDelete()
+{return 0;} //VMMutexDelete()
 
 TVMStatus VMMutexQuery(TVMMutexID mutex, TVMThreadIDRef ownerref)
-{return 0;} //TVMStatus VMMutexQuery()
+{return 0;} //VMMutexQuery()
 
 TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
-{return 0;} //TVMStatus VMMutexAcquire()
+{return 0;} //VMMutexAcquire()
 
 TVMStatus VMMutexRelease(TVMMutexID mutex)
-{return 0;} //TVMStatus VMMutexRelease()
+{return 0;} //VMMutexRelease()
 
 TVMStatus VMFileOpen(const char *filename, int flags, int mode, int *filedescriptor)
-{return 0;} //TVMStatus VMFileOpen()
+{
+	TMachineSignalState OldState; //local variable to suspend signals
+  	MachineSuspendSignals(&OldState); //suspend signals
+
+	if(filename == NULL || filedescriptor == NULL)
+		return VM_STATUS_ERROR_INVALID_PARAMETER;
+
+	MachineFileOpen(filename, flags, mode, FileCallBack, currentThread); //machine opens file
+	currentThread->threadState = VM_THREAD_STATE_WAITING;
+	Scheduler();
+
+	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;
+} //VMFileOpen()
 
 TVMStatus VMFileClose(int filedescriptor)
-{return 0;} //TVMStatus VMFileClose()
+{return 0;} //VMFileClose()
 
 TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
-{return 0;} //TVMStatus VMFileRead()
+{return 0;} //VMFileRead()
 
 TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 {
@@ -384,8 +403,8 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 
 	else //failed to write
 		return VM_STATUS_FAILURE;
-} //TVMStatus VMFileWrite()
+} //VMFileWrite()
 
 TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
-{return 0;} //TVMStatus VMFileSeek()
+{return 0;} //VMFileSeek()
 } //extern "C"
