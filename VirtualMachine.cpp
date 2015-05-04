@@ -32,6 +32,23 @@
 	type in command line: killall -9 vm
 */
 
+/*	Mutex output:
+	VMMain creating threads.
+	VMMain creating mutexes.
+	VMMain locking mutexes.
+	VMMain activating processes.
+	VMThreadHigh Alive
+	VMThreadMedium Alive
+	VMMain releasing mutexes.
+	VMThreadLow Alive
+	VMThreadHigh Awake
+	VMThreadMedium Awake
+	VMMain acquiring main mutex.
+	VMThreadLow Awake
+	VMMain acquired main mutex.
+	Goodbye
+*/
+
 #include "VirtualMachine.h"
 #include "Machine.h"
 #include <vector>
@@ -54,9 +71,18 @@ class TCB
 	SMachineContext SMC; //for the context to switch to/from the thread
 	TVMTick ticker; //for the ticks that thread needs to wait
 	int fileResult; //to hold file return type
-	//possibly hold a pointer or ID of mutex waiting on
-	//possibly hold a list of held mutexes
-}; //class TCB
+}; //class TCB - Thread Control Block
+
+class MB
+{
+	public:
+	TVMMutexID id;
+	TVMMutexIDRef idref;
+	TVMTick ticker;
+	queue<TCB*> high;
+	queue<TCB*> medium;
+	queue<TCB*> low;
+}; //class MB - Mutex Block
 
 typedef void (*TVMMain)(int argc, char *argv[]); //function ptr
 TVMMainEntry VMLoadModule(const char *module); //load module spec
@@ -65,6 +91,7 @@ TCB *idle = new TCB; //global idle thread
 TCB *currentThread = new TCB; //global current running thread
 vector<TCB*> threadList; //global vector list to hold threads
 vector<TCB*> sleepList; // sleep queue
+vector<MB*> mutexList; //list for mutex
 queue<TCB*> highPrio; //high priority queue
 queue<TCB*> normPrio; //normal priority queue
 queue<TCB*> lowPrio; //low priority queue
@@ -133,6 +160,17 @@ TCB *findThread(TVMThreadID thread)
 	} //iterate though the list of threads
 	return NULL; //thread does not exist
 } //findThread()
+
+MB *findMutex(TVMMutexID mid)
+{
+	vector<MB*>::iterator itr;
+	for(itr = mutexList.begin(); itr != mutexList.end(); ++itr)
+	{
+		if((*itr)->id == mid)
+			return (*itr); //mutex does exits
+	} //iterate through the mutex list
+	return NULL; //mutex does not exist
+} //findMutex()
 
 void Scheduler()
 {
@@ -309,10 +347,9 @@ TVMStatus VMThreadID(TVMThreadIDRef threadref)
 {
 	if(threadref == NULL) //invalid
 		return VM_STATUS_ERROR_INVALID_PARAMETER;
-
 	*threadref = currentThread->threadID;
 
-	/*vector<TCB*>::iterator itr;
+	vector<TCB*>::iterator itr;
 	for(itr = threadList.begin(); itr != threadList.end(); ++itr)
 	{
 		if(*threadref  == (*itr)->threadID) //thread does exist
@@ -320,7 +357,7 @@ TVMStatus VMThreadID(TVMThreadIDRef threadref)
 
 		else if(itr == threadList.end()-1) //thread does not exist
 			return VM_STATUS_ERROR_INVALID_ID;
-	} //iterate though the list of threads*/
+	} //iterate though the list of threads
 
 	return VM_STATUS_SUCCESS; //successful retrieval
 } //VMThreadID()
@@ -361,7 +398,21 @@ TVMStatus VMThreadSleep(TVMTick tick)
 } //VMThreadSleep()
 
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
-{return 0;} //VMMutexCreate()
+{
+	TMachineSignalState OldState; //local variable to suspend signals
+  	MachineSuspendSignals(&OldState); //suspend signals
+
+  	if(mutexref == NULL)
+  		return VM_STATUS_ERROR_INVALID_PARAMETER;
+
+	MB *Mutex = new MB;
+	Mutex->id = mutexList.size(); //allocate size for mutex
+	mutexList.push_back(Mutex);
+	*mutexref = Mutex->id; //set to have same id
+
+	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;
+} //VMMutexCreate()
 
 TVMStatus VMMutexDelete(TVMMutexID mutex)
 {return 0;} //VMMutexDelete()
@@ -370,7 +421,10 @@ TVMStatus VMMutexQuery(TVMMutexID mutex, TVMThreadIDRef ownerref)
 {return 0;} //VMMutexQuery()
 
 TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
-{return 0;} //VMMutexAcquire()
+{
+	
+	return 0;
+} //VMMutexAcquire()
 
 TVMStatus VMMutexRelease(TVMMutexID mutex)
 {return 0;} //VMMutexRelease()
@@ -389,6 +443,8 @@ TVMStatus VMFileOpen(const char *filename, int flags, int mode, int *filedescrip
 	*filedescriptor = currentThread->fileResult;
 
 	MachineResumeSignals(&OldState); //resume signals
+	if(currentThread->fileResult < 0) //failure check
+		return VM_STATUS_FAILURE;
 	return VM_STATUS_SUCCESS;
 } //VMFileOpen()
 
@@ -419,6 +475,8 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
 	*length = currentThread->fileResult;
 
 	MachineResumeSignals(&OldState); //resume signals
+	if(currentThread->fileResult < 0)
+		return VM_STATUS_FAILURE;
 	return VM_STATUS_SUCCESS;
 } //VMFileRead()
 
@@ -434,8 +492,10 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	Scheduler();
   	*length = currentThread->fileResult;
-
+  	
   	MachineResumeSignals(&OldState); //resume signals
+  	if(currentThread->fileResult < 0)
+		return VM_STATUS_FAILURE;
 	return VM_STATUS_SUCCESS;
 } //VMFileWrite()
 
@@ -448,8 +508,10 @@ TVMStatus VMFileSeek(int filedescriptor, int offset, int whence, int *newoffset)
   	currentThread->threadState = VM_THREAD_STATE_WAITING;
   	Scheduler();
   	*newoffset = currentThread->fileResult;
-
+  	
   	MachineResumeSignals(&OldState); //resume signals
+  	if(currentThread->fileResult < 0)
+		return VM_STATUS_FAILURE;
 	return VM_STATUS_SUCCESS;
 } //VMFileSeek()
 } //extern "C"
