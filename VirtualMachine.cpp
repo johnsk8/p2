@@ -82,6 +82,7 @@ class MB
 	queue<TCB*> high;
 	queue<TCB*> medium;
 	queue<TCB*> low;
+	TCB *ownerThread;
 }; //class MB - Mutex Block
 
 typedef void (*TVMMain)(int argc, char *argv[]); //function ptr
@@ -144,11 +145,21 @@ void pushThread(TCB *myThread)
 {
 	if(myThread->threadPrior == VM_THREAD_PRIORITY_HIGH)
 		highPrio.push(myThread); //push into high prio queue
-	if(myThread->threadPrior == VM_THREAD_PRIORITY_NORMAL)
+	else if(myThread->threadPrior == VM_THREAD_PRIORITY_NORMAL)
 		normPrio.push(myThread); //push into norm prio queue
-	if(myThread->threadPrior == VM_THREAD_PRIORITY_LOW)
+	else if(myThread->threadPrior == VM_THREAD_PRIORITY_LOW)
 		lowPrio.push(myThread); //push into low prio queue
 } //pushThread()
+
+void pushMutex(MB *myMutex)
+{
+	if(currentThread->threadPrior == VM_THREAD_PRIORITY_HIGH)
+		myMutex->high.push(currentThread); //push into high prio queue
+	else if(currentThread->threadPrior == VM_THREAD_PRIORITY_NORMAL)
+		myMutex->medium.push(currentThread); //push into norm prio queue
+	else if(currentThread->threadPrior == VM_THREAD_PRIORITY_LOW)
+		myMutex->low.push(currentThread); //push into low prio queue
+} //pushMutex()
 
 TCB *findThread(TVMThreadID thread)
 {
@@ -217,6 +228,33 @@ void Scheduler()
 		}
 	}
 } //Scheduler()
+
+void SchedulerMutex(MB *myMutex)
+{
+	if(myMutex->ownerThread == NULL)
+	{
+		if(!myMutex->high.empty())
+    	{
+    		myMutex->ownerThread = myMutex->high.front();
+    		myMutex->high.pop();
+    		cout << "high" << endl;
+    	} //high prior thread check
+
+    	else if(!myMutex->medium.empty())
+    	{
+    		myMutex->ownerThread = myMutex->medium.front();
+    		myMutex->medium.pop();
+    		cout << "medium" << endl;
+    	} //normal prior thread check
+
+    	else if(!lowPrio.empty())
+    	{
+    		myMutex->ownerThread = myMutex->low.front();
+    		myMutex->low.pop();
+    		cout << "low" << endl;
+    	} //low prior thread check
+	}
+}
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
@@ -422,12 +460,48 @@ TVMStatus VMMutexQuery(TVMMutexID mutex, TVMThreadIDRef ownerref)
 
 TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
 {
-	
-	return 0;
+	TMachineSignalState OldState; //local variable to suspend signals
+  	MachineSuspendSignals(&OldState); //suspend signals
+
+  	MB *myMutex = findMutex(mutex); //finds the mutex id
+  	if(myMutex == NULL)
+  		return VM_STATUS_ERROR_INVALID_ID; //mutex does not exist
+
+	myMutex->ticker = timeout;
+  	pushMutex(myMutex); //push the currentThread into its proper mutex
+
+  	if(myMutex->ticker == VM_TIMEOUT_INFINITE)
+  	{
+  		while(myMutex->ownerThread != NULL) {}; //wait here until id acquired
+  	}
+
+  	else
+  	{
+  		while(myMutex->ticker > 0) {}; //just keep waiting then until done
+  	}
+
+  	SchedulerMutex(myMutex);
+
+  	MachineResumeSignals(&OldState); //resume signals
+	return VM_STATUS_SUCCESS;
 } //VMMutexAcquire()
 
 TVMStatus VMMutexRelease(TVMMutexID mutex)
-{return 0;} //VMMutexRelease()
+{
+	TMachineSignalState OldState; //local variable to suspend signals
+  	MachineSuspendSignals(&OldState); //suspend signals
+
+  	MB *myMutex = findMutex(mutex); //finds the mutex id
+	if(myMutex == NULL)
+  		return VM_STATUS_ERROR_INVALID_ID; //mutex does not exist
+  	if(myMutex->id != currentThread->threadID)
+  		return VM_STATUS_ERROR_INVALID_STATE;//needs to be currently held by running thread
+  	myMutex->ownerThread == NULL; //set to NULL
+  	SchedulerMutex(); //schedule for next mutex
+
+  	MachineResumeSignals(&OldState); //resume signals
+	return 0;
+} //VMMutexRelease()
 
 TVMStatus VMFileOpen(const char *filename, int flags, int mode, int *filedescriptor)
 {
