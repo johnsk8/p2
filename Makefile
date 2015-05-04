@@ -20,7 +20,7 @@ OBJS=$(OBJDIR)/Machine.o \
 MODOBJS=$(OBJDIR)/module.o
      
      
-DEBUG_MODE=TRUE
+#DEBUG_MODE=TRUE
 UNAME := $(shell uname)
 
 ifdef DEBUG_MODE
@@ -30,7 +30,7 @@ endif
 INCLUDES += -I. 
 LIBRARIES = -ldl
 
-CFLAGS += -Wall -std=c++11 $(INCLUDES) $(DEFINES) 
+CFLAGS += -Wall $(INCLUDES) $(DEFINES) 
 APPCFLAGS += -Wall -fPIC $(INCLUDES) $(DEFINES)
 
 ifdef DEBUG_MODE
