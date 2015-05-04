@@ -1,0 +1,45 @@
+README	
+
+A virtual machine for ECS 150
+Filename: VirtualMachine.cpp, Makefile
+Authors: John Garcia, Felix Ng
+
+	In this version:
+TVMStatus VMStart -				done
+TVMMainEntry VMLoadModule -		GIVEN
+void VMUnloadModule - 			GIVEN
+TVMStatus VMThreadCreate - 		done
+TVMStatus VMThreadDelete - 		done
+TVMStatus VMThreadActivate - 		done
+TVMStatus VMThreadTerminate - 		done
+TVMStatus VMThreadID - 			done
+TVMStatus VMThreadState - 		done
+TVMStatus VMThreadSleep - 		done
+TVMStatus VMMutexCreate - 		done
+TVMStatus VMMutexDelete - 		done
+TVMStatus VMMutexQuery - 		done
+TVMStatus VMMutexAcquire - 		done
+TVMStatus VMMutexRelease - 		done
+TVMStatus VMFileOpen - 			done
+TVMStatus VMFileClose - 		done  
+TVMStatus VMFileRead - 			done
+TVMStatus VMFileWrite - 		done
+TVMStatus VMFileSeek - 			done
+TVMStatus VMFilePrint - 		GIVEN
+
+All functions work when tested with included apps:
+./vm ./hello.so		- 	works
+./vm ./sleep.so		- 	works
+./vm ./thread.so	-	works
+./vm ./file.so		-	works
+./vm ./mutex.so		-	works
+
+Notes:
+Makefile uses std=c++11
+No code taken from the internet…
+Big thanks to cplusplusreference though.
+Please ignore any uncommented couts.
+Thanks.
+
+
+
