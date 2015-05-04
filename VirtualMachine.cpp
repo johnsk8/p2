@@ -494,10 +494,10 @@ TVMStatus VMMutexRelease(TVMMutexID mutex)
   	MB *myMutex = findMutex(mutex); //finds the mutex id
 	if(myMutex == NULL)
   		return VM_STATUS_ERROR_INVALID_ID; //mutex does not exist
-  	if(myMutex->id != currentThread->threadID)
+  	if(myMutex->ownerThread != currentThread)
   		return VM_STATUS_ERROR_INVALID_STATE;//needs to be currently held by running thread
-  	myMutex->ownerThread == NULL; //set to NULL
-  	SchedulerMutex(); //schedule for next mutex
+  	myMutex->ownerThread = NULL; //set to NULL
+  	SchedulerMutex(myMutex); //schedule for next mutex
 
   	MachineResumeSignals(&OldState); //resume signals
 	return 0;
